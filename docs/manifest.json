@@ -1,0 +1,32 @@
+{
+  "name": "OEM Ignition Logger",
+  "version": "1.0.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        {
+          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/bootloader.bin",
+          "offset": 4096
+        },
+        {
+          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/partitions.bin",
+          "offset": 32768
+        },
+        {
+          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/boot_app0.bin",
+          "offset": 57344
+        },
+        {
+          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/firmware.bin",
+          "offset": 65536
+        },
+        {
+          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/littlefs.bin",
+          "offset": 3997696
+        }
+      ]
+    }
+  ]
+}

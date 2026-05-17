@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ignition Logger – Web Flash</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0d0d;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;text-align:center;padding:24px}
+h1{font-size:1.6rem;font-weight:800;color:#ff8c00;margin-bottom:8px}
+.sub{color:#555;margin-bottom:40px;font-size:.9rem;max-width:400px}
+esp-web-install-button{--esp-tools-button-color:#ff8c00;
+  --esp-tools-button-text-color:#000;margin:8px}
+.steps{text-align:left;max-width:400px;margin-top:36px;
+  background:#161616;border:1px solid #222;border-radius:14px;padding:20px 24px}
+.steps h3{font-size:.8rem;text-transform:uppercase;letter-spacing:.1em;
+  color:#555;margin-bottom:12px}
+.steps ol{padding-left:20px;color:#666;font-size:.85rem;line-height:2}
+.steps b{color:#aaa}
+.steps code{background:#222;color:#ff8c00;padding:1px 6px;
+  border-radius:4px;font-size:.8rem}
+.note{margin-top:12px;font-size:.72rem;color:#444;text-align:left}
+footer{margin-top:32px;font-size:.7rem;color:#333}
+footer a{color:#555}
+</style>
+</head>
+<body>
+
+<h1>OEM Ignition Logger</h1>
+<p class="sub">Flash din ESP32 direkte fra browseren.<br>Kræver Chrome eller Edge med Web Serial.</p>
+
+<esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+
+<div class="steps">
+  <h3>Efter flash</h3>
+  <ol>
+    <li>Tilslut til WiFi: <b>IgnLogger</b> &nbsp;/&nbsp; <code>ignition1</code></li>
+    <li>Åbn: <code>http://192.168.4.1</code></li>
+    <li>OTA opdatering: <code>http://192.168.4.1/update</code></li>
+    <li>Kalibrering: Tryk GPIO0 ved idle (10° BTDC)</li>
+  </ol>
+  <p class="note">NE signal: 10k/20k spændingsdeler &nbsp;|&nbsp; IGT signal: 33k/10k spændingsdeler</p>
+</div>
+
+<footer>
+  <a href="https://github.com/joachimth/esp32-ecu-reversing-for-speeduino">GitHub</a>
+</footer>
+
+</body>
+</html>
