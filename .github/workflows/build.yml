@@ -1,0 +1,68 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio-${{ hashFiles('firmware/platformio.ini') }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Build firmware
+        run: |
+          cd firmware
+          pio run -e esp32dev
+
+      - name: Build LittleFS image
+        run: |
+          cd firmware
+          pio run -e esp32dev -t buildfs
+
+      - name: Gather binaries
+        run: |
+          mkdir -p release
+          cp firmware/.pio/build/esp32dev/firmware.bin   release/
+          cp firmware/.pio/build/esp32dev/partitions.bin release/
+          cp firmware/.pio/build/esp32dev/bootloader.bin release/
+          cp firmware/.pio/build/esp32dev/littlefs.bin   release/
+          BOOT_APP=$(find ~/.platformio -name "boot_app0.bin" 2>/dev/null | head -1)
+          if [ -z "$BOOT_APP" ]; then
+            echo "ERROR: boot_app0.bin not found" && exit 1
+          fi
+          cp "$BOOT_APP" release/boot_app0.bin
+          ls -lh release/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ignition-logger-firmware
+          path: release/
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
