@@ -5,28 +5,47 @@ Reverse engineer Toyota 4E-FE OEM ECU via signalanalyse på NE (crank) og IGT (i
 
 ## Hardware
 - **Board**: ESP32 (esp32dev)
-- **GPIO25** = NE signal, 5V via 10k/20k spændingsdeler
-- **GPIO26** = IGT signal, 5-12V via 33k/10k spændingsdeler (12V → ~2.8V)
-- **GPIO0**  = CAL knap (active low, idle kalibrering, intern pull-up)
+
+### Pin-oversigt
+| Pin    | Signal         | Type      | Beskyttelse           | Bemærkning        |
+|--------|----------------|-----------|-----------------------|-------------------|
+| GPIO25 | NE crank       | Digital   | 10k/20k deler (5V)    | Påkrævet          |
+| GPIO26 | IGT ignition   | Digital   | 33k/10k deler (12V)   | Påkrævet          |
+| GPIO0  | CAL knap       | Digital   | Intern pull-up        | Påkrævet          |
+| GPIO34 | MAP sensor     | ADC       | 10k/20k deler (5V)    | Valgfri, auto-detekteret |
+| GPIO35 | Fuel injektor  | Digital   | 33k/10k deler (12V)   | Valgfri, auto-detekteret |
+| GPIO32 | IAC ventil PWM | Digital   | 33k/10k deler (12V)   | Valgfri, auto-detekteret |
 
 ### Spændingsdelere
 ```
-NE (5V):   NE ---[10k]---+--- GPIO25
-                         |
-                        [20k]
-                         |
-                        GND
+NE / MAP (5V):   SIG ---[10k]---+--- GPIO
+                                |
+                               [20k]
+                                |
+                               GND
 
-IGT (12V): IGT ---[33k]---+--- GPIO26
-                          |
-                         [10k]
-                          |
-                         GND
+IGT / INJ / IAC (12V): SIG ---[33k]---+--- GPIO
+                                      |
+                                     [10k]
+                                      |
+                                     GND
 ```
 
 ## Signallogik
 - **NE**: Digital 36-2 crank trigger. Missing tooth = 0° reference (TDC).
 - **IGT**: Ignition command. Rising = dwell start. Falling = spark / ignition event.
+- **MAP**: Analog tryk-sensor. 0.5V=10kPa, 4.5V=105kPa (Bosch 1-bar approx).
+- **INJ**: Fuel injector puls. Falling = start, Rising = slut. Pulsbredde = indsprøjtningsvarighed.
+- **IAC**: PWM signal fra ECU. Duty cycle = ventil-åbning %.
+
+## Auto-detektion af valgfrie sensorer
+| Sensor | Betingelse for "aktiv" |
+|--------|------------------------|
+| MAP    | ADC-værdi i [300, 3800] (0.24V – 3.06V) |
+| INJ    | Puls registreret inden for 2 sekunder |
+| IAC    | Puls registreret inden for 2 sekunder |
+
+Web-dashboardet viser kun sensor-kort når data er validt. Skjules automatisk ved frakobling.
 
 ## Formler
 ```
@@ -34,10 +53,13 @@ rawAngle   = tooth * 10 + (dt / toothPeriod) * 10
 advance    = calibOffset - rawAngle        [° BTDC]
 rpm        = 60_000_000 / (toothPeriodUs * 36)
 dwell      = (igtFall_us - igtRise_us) / 1000   [ms]
+map_kPa    = (v_sensor - 0.5) * 23.75 + 10      [kPa, Bosch 1-bar]
+inj_ms     = (injRise_us - injFall_us) / 1000    [ms]
+iac_pct    = iacHighUs / iacPeriodUs * 100       [%]
 ```
 
-Tand-tæller (tooth) nulstilles ved missing-tooth detektion: dt > lastPeriod × 1.7.
-Fratældelen (frac) clampes til [0, 1] og nulstilles hvis motoren er stoppet (dt > period × 3).
+Tand-tæller nulstilles ved missing-tooth: dt > lastPeriod × 1.7.
+Frac clampes til [0, 1] og nulstilles hvis motoren er stoppet (dt > period × 3).
 
 ## Kalibrering
 Tryk GPIO0 kortvarigt ved idle (motor = 10° BTDC, standard Toyota):
@@ -50,13 +72,11 @@ Gemt i NVS (Preferences) under nøglen `"offset"`. Standardværdi: 215.
 ```
 RPM,ADV,DWELL,TOOTH,SYNC
 875,10.2,3.14,20.51,1
-1500,18.1,2.90,19.20,1
-2500,31.4,2.60,17.85,1
 ```
 - **TOOTH** = `toothCount.frac×100` (f.eks. 20.51 = tand 20, 51% inde i perioden)
 - **SYNC** = 1 når missing tooth er fundet, 0 ellers
 
-## WiFi (Access Point)
+## WiFi (Access Point + Captive Portal)
 | Parameter | Værdi                     |
 |-----------|---------------------------|
 | SSID      | IgnLogger                 |
@@ -65,24 +85,55 @@ RPM,ADV,DWELL,TOOTH,SYNC
 | Dashboard | http://192.168.4.1        |
 | OTA       | http://192.168.4.1/update |
 
-## Web Endpoints
-| URL        | Metode   | Funktion                              |
-|------------|----------|---------------------------------------|
-| `/`        | GET      | Live dashboard (serveret fra LittleFS)|
-| `/ws`      | WS       | WebSocket → live CSV data, 5 Hz       |
-| `/update`  | GET      | OTA upload formular                   |
-| `/update`  | POST     | Modtager firmware.bin, flasher + genstarter |
+Ved tilslutning til WiFi vises captive portal automatisk på iPhone, Android og Windows.
+DNS-server omdirigerer alle forespørgsler til 192.168.4.1.
 
-WebSocket CSV-format: `RPM,ADV,DWELL,TOOTH.FRAC,SYNC`
+## Web Endpoints
+| URL               | Metode   | Funktion                                    |
+|-------------------|----------|---------------------------------------------|
+| `/`               | GET      | Live dashboard (LittleFS)                   |
+| `/ws`             | WS       | WebSocket → JSON @ 5 Hz                     |
+| `/log/start`      | POST     | Start rå datalogning                        |
+| `/log/stop`       | POST     | Stop datalogning                            |
+| `/log/clear`      | POST     | Ryd log-buffer                              |
+| `/log.csv`        | GET      | Download log som CSV-fil                    |
+| `/update`         | GET      | OTA upload formular                         |
+| `/update`         | POST     | Modtager firmware.bin, flasher + genstarter |
+
+## WebSocket JSON-format
+```json
+{"r":875,"a":10.2,"d":3.14,"t":20,"f":51,"s":1,"m":98.5,"i":2.30,"c":45.0,"lc":150,"la":1}
+```
+| Felt | Beskrivelse                         | -1 = ikke tilgængelig |
+|------|-------------------------------------|-----------------------|
+| r    | RPM                                 | —                     |
+| a    | Advance °BTDC                       | —                     |
+| d    | Dwell ms                            | —                     |
+| t    | Tand (0–35)                         | —                     |
+| f    | Fraktion × 100                      | —                     |
+| s    | Sync (0/1)                          | —                     |
+| m    | MAP kPa                             | -1                    |
+| i    | Injektor ms                         | -1                    |
+| c    | IAC duty %                          | -1                    |
+| lc   | Log-entries i buffer                | —                     |
+| la   | Log aktiv (0/1)                     | —                     |
+
+## CSV log-format
+```
+timestamp_ms,rpm,adv_btdc,dwell_ms,tooth,frac,sync,map_kpa,inj_ms,iac_pct
+0,875,10.2,3.14,20,51,1,98.5,2.30,45.0
+200,880,10.3,3.14,20,48,1,,2.31,
+```
+Tomme felter = sensor ikke tilsluttet. Buffer: 1500 entries ≈ 5 minutter ved 5 Hz.
 
 ## Biblioteker
 ```
 esphome/ESPAsyncWebServer-esphome @ ^3.3.0
 esphome/AsyncTCP-esphome @ ^2.1.0
 ```
-Esphome-forks bruges frem for me-no-dev originalen da de er aktivt vedligeholdt og
-kompatible med nyere ESP-IDF versioner. OTA håndteres direkte via Arduino `Update`-biblioteket
-(del af framework) – ingen ekstra dependency.
+Esphome-forks bruges frem for me-no-dev da de er aktivt vedligeholdt og kompatible med
+nyere ESP-IDF. OTA via Arduino `Update`-biblioteket (del af framework). DNS via `DNSServer`
+(del af framework).
 
 ## Partition tabel (min_spiffs.csv)
 | Navn    | Type | Offset     | Størrelse |
@@ -103,8 +154,8 @@ Web Tools manifest-offsets (decimal):
 ## Projekt struktur
 ```
 firmware/
-  src/main.cpp          ISR + WiFi AP + WebSocket + OTA
-  data/index.html       web dashboard (LittleFS, ~3 KB)
+  src/main.cpp          ISR + WiFi AP + captive portal + WebSocket + OTA + logging
+  data/index.html       web dashboard (LittleFS, ~5 KB)
   platformio.ini
 
 docs/
@@ -117,41 +168,52 @@ docs/
 
 ## Build & Flash (lokal)
 ```bash
-# Byg firmware
-cd firmware && pio run
-
-# Byg LittleFS image
-pio run -t buildfs
-
-# Upload via USB (firmware + filesystem)
-pio run -t upload && pio run -t uploadfs
-
-# Serial monitor
-pio device monitor
+cd firmware && pio run          # byg firmware
+pio run -t buildfs              # byg LittleFS image
+pio run -t upload               # flash firmware via USB
+pio run -t uploadfs             # flash web UI via USB
+pio device monitor              # serial monitor 115200 baud
 ```
 
 ## Release procedure (web flash)
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
-# GitHub Actions bygger og opretter release med binaries
+# GitHub Actions bygger og opretter release med alle binaries
 # Web flasher bruger automatisk "latest" release
 ```
 
 ## GitHub Pages (én gang)
 Repo Settings → Pages → **Source: GitHub Actions** → Save.
 GitHub Actions workflow'en deployer automatisk `docs/` ved hvert push til main.
-Web flasher er herefter live på:
+Web flasher er live på:
 `https://joachimth.github.io/esp32-ecu-reversing-for-speeduino/`
 
-## v2 TODO (OLED standalone display)
-- SSD1306 128x64 OLED via I2C (GPIO21=SDA, GPIO22=SCL)
-- Live gauge direkte på skærm ved bilen:
+---
+
+## TODO / Roadmap
+
+### v1.x – Forbedringer af eksisterende
+- [ ] Live grafer i web UI (RPM, ADV over tid) via Chart.js
+- [ ] LittleFS-baseret logging (ubegrænset varighed, gemmes på flash)
+- [ ] Konfigurationspanel i web UI (calibOffset, MAP-skalering, sensor-labels)
+- [ ] WiFi Station mode – forbind til eksisterende WiFi i stedet for AP
+- [ ] MAP-sensor konfiguration (custom kPa/V kurve)
+- [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
+- [ ] Knock sensor (analog, spektralanalyse på ADC)
+
+### v2 – OLED standalone display
+- [ ] SSD1306 128x64 OLED via I2C (GPIO21=SDA, GPIO22=SCL)
+- [ ] Live gauge ved bilen uden PC/telefon:
   ```
-  RPM: 875
-  ADV: 10.1°
-  DWL: 3.0 ms
-  SYNC OK
+  RPM: 875   ADV: 10.1°
+  DWL: 3.0ms SYNC OK
+  MAP: 98kPa INJ: 2.3ms
   ```
-- Ingen PC/telefon nødvendig
-- Overvej: roterende tand-visning eller advance bar-gauge
+- [ ] Roterende tand-visning eller advance bar-gauge
+- [ ] Kalibrerings-menu på knap
+
+### v3 – Speeduino integration
+- [ ] Send timing-offset til Speeduino via UART
+- [ ] Bidirectional: modtag VE/timing tables fra Speeduino
+- [ ] Auto-tuning forslag baseret på logged MAP + advance data

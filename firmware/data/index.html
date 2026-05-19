@@ -7,54 +7,72 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0d0d0d;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;
-  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px 16px}
-header{width:100%;max-width:560px;display:flex;justify-content:space-between;
-  align-items:center;margin-bottom:24px}
-h1{font-size:1.25rem;font-weight:700;color:#ff8c00;letter-spacing:.02em}
-#dot{width:10px;height:10px;border-radius:50%;background:#333;
-  transition:background .3s;flex-shrink:0}
-#dot.ok{background:#4caf50;box-shadow:0 0 8px #4caf5066}
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px}
+header{width:100%;max-width:580px;display:flex;justify-content:space-between;
+  align-items:center;margin-bottom:16px}
+h1{font-size:1.2rem;font-weight:700;color:#ff8c00}
+.conn{display:flex;align-items:center;gap:7px;font-size:.75rem;color:#555}
+#dot{width:9px;height:9px;border-radius:50%;background:#333;flex-shrink:0;transition:background .3s}
+#dot.ok{background:#4caf50;box-shadow:0 0 7px #4caf5055}
 #dot.err{background:#f44336}
-#status{font-size:.75rem;color:#555;margin-right:8px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:560px}
-.card{background:#161616;border:1px solid #222;border-radius:14px;padding:18px 16px;
-  text-align:center}
-.card label{font-size:.65rem;text-transform:uppercase;letter-spacing:.12em;
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:580px}
+.card{background:#161616;border:1px solid #222;border-radius:12px;padding:16px 12px;text-align:center}
+.card label{font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:#555;display:block;margin-bottom:6px}
+.val{font-size:2.4rem;font-weight:800;line-height:1;color:#ff8c00;font-variant-numeric:tabular-nums;transition:color .2s}
+.unit{font-size:.68rem;color:#3a3a3a;margin-top:4px}
+.sync .val{color:#555}
+.sync .val.ok{color:#4caf50}
+.sync .val.nok{color:#f44336}
+/* optional sensor cards */
+.opt{display:none}
+.opt.visible{display:block}
+/* tooth bar */
+.tooth-wrap{margin-top:10px;width:100%;max-width:580px;
+  background:#161616;border:1px solid #222;border-radius:12px;padding:14px 16px}
+.tooth-wrap label{font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;
   color:#555;display:block;margin-bottom:8px}
-.card .val{font-size:2.6rem;font-weight:800;line-height:1;color:#ff8c00;
-  font-variant-numeric:tabular-nums;transition:color .2s}
-.card .unit{font-size:.7rem;color:#444;margin-top:5px}
-.card.sync .val{color:#555}
-.card.sync .val.ok{color:#4caf50}
-.card.sync .val.nok{color:#f44336}
-.tooth-wrap{margin-top:12px;width:100%;max-width:560px;
-  background:#161616;border:1px solid #222;border-radius:14px;padding:16px}
-.tooth-wrap label{font-size:.65rem;text-transform:uppercase;letter-spacing:.12em;
-  color:#555;display:block;margin-bottom:10px}
-.bar-bg{height:10px;background:#1e1e1e;border-radius:5px;overflow:hidden}
+.bar-bg{height:8px;background:#1e1e1e;border-radius:4px;overflow:hidden}
 .bar{height:100%;width:0%;background:linear-gradient(90deg,#ff8c00,#ffb347);
-  border-radius:5px;transition:width .15s}
-.tooth-val{font-size:.75rem;color:#444;margin-top:6px;text-align:right}
-.info{margin-top:20px;width:100%;max-width:560px;
-  background:#161616;border:1px solid #222;border-radius:14px;padding:14px 16px;
-  font-size:.75rem;color:#444;line-height:1.9}
-.info span{color:#666}
-footer{margin-top:20px;font-size:.7rem;color:#333}
-footer a{color:#555;text-decoration:none}
+  border-radius:4px;transition:width .15s}
+.tooth-val{font-size:.72rem;color:#3a3a3a;margin-top:5px;text-align:right}
+/* log panel */
+.log-panel{margin-top:10px;width:100%;max-width:580px;
+  background:#161616;border:1px solid #222;border-radius:12px;padding:14px 16px}
+.log-panel h2{font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;
+  color:#555;margin-bottom:12px}
+.log-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{border:0;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:.8rem;
+  font-family:inherit;transition:background .2s}
+.btn-start{background:#1a3a1a;color:#4caf50}
+.btn-start.active{background:#4caf50;color:#000}
+.btn-secondary{background:#1e1e1e;color:#888;border:1px solid #2a2a2a}
+.btn-secondary:hover{background:#2a2a2a}
+.btn-dl{background:#1a2a3a;color:#64b5f6;border:1px solid #1e3a5a;text-decoration:none;
+  display:inline-flex;align-items:center;gap:4px}
+.btn-dl:hover{background:#1e3a5a}
+#log-count{font-size:.75rem;color:#555;margin-left:4px}
+/* info + footer */
+.info{margin-top:10px;width:100%;max-width:580px;
+  background:#161616;border:1px solid #222;border-radius:12px;padding:12px 16px;
+  font-size:.72rem;color:#3a3a3a;line-height:1.9}
+.info span{color:#555}
+footer{margin-top:12px;font-size:.68rem;color:#2a2a2a}
+footer a{color:#444;text-decoration:none}
 footer a:hover{color:#888}
-@media(max-width:360px){.card .val{font-size:2rem}}
+@media(max-width:360px){.val{font-size:1.9rem}.btn{padding:7px 12px}}
 </style>
 </head>
 <body>
 
 <header>
   <h1>Ignition Logger</h1>
-  <div style="display:flex;align-items:center;gap:8px">
+  <div class="conn">
     <span id="status">Forbinder...</span>
     <span id="dot"></span>
   </div>
 </header>
 
+<!-- Primære målinger (altid synlige) -->
 <div class="grid">
   <div class="card">
     <label>RPM</label>
@@ -78,16 +96,48 @@ footer a:hover{color:#888}
   </div>
 </div>
 
+<!-- Valgfrie sensorer (auto-vises ved tilslutning) -->
+<div class="grid" id="opt-grid" style="display:none">
+  <div class="card opt" id="map-card">
+    <label>MAP</label>
+    <div class="val" id="map">—</div>
+    <div class="unit">kPa (GPIO34)</div>
+  </div>
+  <div class="card opt" id="inj-card">
+    <label>Injektor</label>
+    <div class="val" id="inj">—</div>
+    <div class="unit">ms (GPIO35)</div>
+  </div>
+  <div class="card opt" id="iac-card">
+    <label>IAC ventil</label>
+    <div class="val" id="iac">—</div>
+    <div class="unit">% (GPIO32)</div>
+  </div>
+</div>
+
+<!-- Tand-position -->
 <div class="tooth-wrap">
   <label>Tand position  (0 – 35)</label>
   <div class="bar-bg"><div class="bar" id="bar"></div></div>
   <div class="tooth-val" id="tooth-val">—</div>
 </div>
 
+<!-- Logning -->
+<div class="log-panel">
+  <h2>Rå datalogning</h2>
+  <div class="log-row">
+    <button class="btn btn-start" id="log-btn" onclick="toggleLog()">▶ Start</button>
+    <button class="btn btn-secondary" onclick="clearLog()">Ryd</button>
+    <a class="btn btn-dl" href="/log.csv" download="ignlog.csv">⬇ CSV</a>
+    <span id="log-count">0 / 1500 entries</span>
+  </div>
+</div>
+
+<!-- Info -->
 <div class="info">
   <span>WiFi:</span> IgnLogger / ignition1 &nbsp;|&nbsp;
   <span>IP:</span> 192.168.4.1 &nbsp;|&nbsp;
-  <span>Cal:</span> Tryk GPIO0 ved idle
+  <span>Kalibrering:</span> Tryk GPIO0 ved idle (10° BTDC)
 </div>
 
 <footer>
@@ -96,49 +146,74 @@ footer a:hover{color:#888}
 
 <script>
 const $ = id => document.getElementById(id);
-const statusEl = $('status');
-const dotEl    = $('dot');
-let ws, retryT;
+let ws, retryT, logRunning = false;
 
 function setConn(ok) {
-  statusEl.textContent = ok ? 'Forbundet' : 'Afbrudt – forsøger igen...';
-  dotEl.className = ok ? 'ok' : 'err';
+  $('status').textContent = ok ? 'Forbundet' : 'Afbrudt – forsøger igen...';
+  $('dot').className = ok ? 'ok' : 'err';
+}
+
+function showOpt(id, show) {
+  const card = $(id + '-card');
+  const changed = show !== card.classList.contains('visible');
+  if (changed) card.classList.toggle('visible', show);
+  // update opt-grid visibility
+  const any = ['map','inj','iac'].some(x => $(x+'-card').classList.contains('visible'));
+  $('opt-grid').style.display = any ? '' : 'none';
+  if (any) $('opt-grid').style.gridTemplateColumns =
+    [...['map','inj','iac'].filter(x=>$(x+'-card').classList.contains('visible'))]
+    .length > 1 ? '1fr 1fr' : '1fr 1fr';
 }
 
 function connect() {
   clearTimeout(retryT);
   ws = new WebSocket('ws://' + location.host + '/ws');
-
   ws.onopen  = () => setConn(true);
   ws.onerror = () => ws.close();
-  ws.onclose = () => {
-    setConn(false);
-    retryT = setTimeout(connect, 2000);
-  };
+  ws.onclose = () => { setConn(false); retryT = setTimeout(connect, 2000); };
 
   ws.onmessage = e => {
-    // format: RPM,ADV,DWELL,TOOTH.FRAC,SYNC
-    const p = e.data.split(',');
-    if (p.length < 5) return;
+    let d;
+    try { d = JSON.parse(e.data); } catch { return; }
 
-    const rpm   = parseFloat(p[0]);
-    const adv   = parseFloat(p[1]);
-    const dwell = parseFloat(p[2]);
-    const tooth = parseFloat(p[3]);   // e.g. 20.51
-    const sync  = parseInt(p[4]) === 1;
-
-    $('rpm').textContent   = rpm.toFixed(0);
-    $('adv').textContent   = adv.toFixed(1);
-    $('dwell').textContent = dwell.toFixed(2);
+    $('rpm').textContent   = d.r.toFixed(0);
+    $('adv').textContent   = d.a.toFixed(1);
+    $('dwell').textContent = d.d.toFixed(2);
 
     const syncEl = $('sync');
-    syncEl.textContent = sync ? 'OK' : 'NEJ';
-    syncEl.className   = 'val ' + (sync ? 'ok' : 'nok');
+    syncEl.textContent = d.s ? 'OK' : 'NEJ';
+    syncEl.className   = 'val ' + (d.s ? 'ok' : 'nok');
 
-    const pct = Math.min((Math.floor(tooth) / 35) * 100, 100);
-    $('bar').style.width    = pct + '%';
-    $('tooth-val').textContent = 'Tand ' + p[3] + ' / 35';
+    // Optional sensors – auto-vises
+    if (d.m >= 0) { showOpt('map', true);  $('map').textContent = d.m.toFixed(1); }
+    else            showOpt('map', false);
+
+    if (d.i >= 0) { showOpt('inj', true);  $('inj').textContent = d.i.toFixed(2); }
+    else            showOpt('inj', false);
+
+    if (d.c >= 0) { showOpt('iac', true);  $('iac').textContent = d.c.toFixed(1); }
+    else            showOpt('iac', false);
+
+    // Tand bar
+    $('bar').style.width   = Math.min(d.t / 35 * 100, 100) + '%';
+    $('tooth-val').textContent = 'Tand ' + d.t + '.' + String(d.f).padStart(2,'0') + ' / 35';
+
+    // Log status
+    const count = d.lc;
+    logRunning = d.la === 1;
+    const btn = $('log-btn');
+    btn.textContent = logRunning ? '⏹ Stop' : '▶ Start';
+    btn.classList.toggle('active', logRunning);
+    $('log-count').textContent = count + ' / 1500 entries';
   };
+}
+
+function toggleLog() {
+  fetch(logRunning ? '/log/stop' : '/log/start', {method:'POST'});
+}
+function clearLog() {
+  if (confirm('Slet alle ' + $('log-count').textContent.split('/')[0].trim() + ' entries?'))
+    fetch('/log/clear', {method:'POST'});
 }
 
 connect();
