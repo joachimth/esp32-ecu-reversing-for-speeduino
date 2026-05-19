@@ -96,15 +96,22 @@ void IRAM_ATTR iacISR()
 }
 
 // ─── Sensor helpers ──────────────────────────────────────────────────────────
+static int readMapADC()
+{
+    // 8× oversampling reduces ESP32 ADC noise by ~3×
+    uint32_t s = 0;
+    for (int i=0; i<8; i++) s += analogRead(PIN_MAP);
+    return (int)(s >> 3);
+}
 static float readMapKpa()
 {
-    float vGpio   = analogRead(PIN_MAP) * 3.3f / 4095.0f;
+    float vGpio   = readMapADC() * 3.3f / 4095.0f;
     float vSensor = vGpio * 1.5f;  // 10k/20k divider compensation
     float range   = mapVmax - mapVmin;
     if (range < 0.01f) return mapKpaMin;
     return mapKpaMin + (vSensor - mapVmin) / range * (mapKpaMax - mapKpaMin);
 }
-static bool isMapConnected() { int r=analogRead(PIN_MAP); return r>300&&r<3800; }
+static bool isMapConnected() { int r=readMapADC(); return r>300&&r<3800; }
 static bool isInjActive()    { return (micros()-lastInjUs)    < 2000000UL; }
 static bool isIacActive()    { return lastIacEdgeUs&&(micros()-lastIacEdgeUs)<2000000UL; }
 static float getIacDuty()    { return iacPeriodUs>0 ? iacHighUs/iacPeriodUs*100.0f : -1.0f; }
@@ -132,9 +139,15 @@ static bool openLogFile()
     bool exists = LittleFS.exists("/ignlog.csv");
     logFile = LittleFS.open("/ignlog.csv", exists ? "a" : "w");
     if (!logFile) return false;
-    if (!exists)
+    if (!exists) {
+        char hdr[192];
+        snprintf(hdr, sizeof(hdr),
+            "# OEM Ignition Logger | offset=%.1f | MAP %s=%.2fV–%.2fV %.0f–%.0fkPa",
+            calibOffset, lblMap.c_str(), mapVmin, mapVmax, mapKpaMin, mapKpaMax);
+        logFile.println(hdr);
         logFile.println("timestamp_ms,rpm,adv_btdc,dwell_ms,tooth,frac,sync,"
                         "map_kpa,inj_ms,iac_pct");
+    }
     return true;
 }
 
@@ -175,7 +188,7 @@ static void pushToClients()
     float injMsV  = isInjActive()    ? injMs           : -1.0f;
     float iacPct  = isIacActive()    ? getIacDuty()    : -1.0f;
     float iacFreq = isIacActive()    ? getIacFreqHz()  :  0.0f;
-    float mapV    = analogRead(PIN_MAP) * 3.3f / 4095.0f * 1.5f;
+    float mapV    = readMapADC() * 3.3f / 4095.0f * 1.5f;
     char buf[256];
     snprintf(buf, sizeof(buf),
         "{\"r\":%.0f,\"a\":%.1f,\"d\":%.2f,\"t\":%d,\"f\":%d,\"s\":%d"
