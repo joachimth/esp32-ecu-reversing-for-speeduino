@@ -47,6 +47,11 @@ float mapVmax   = 4.5f;    // sensor V at max pressure
 float mapKpaMin = 10.0f;   // kPa at Vmin
 float mapKpaMax = 105.0f;  // kPa at Vmax
 
+// Sensor labels (user-defined names shown in dashboard)
+String lblMap = "MAP";
+String lblInj = "Injektor";
+String lblIac = "IAC";
+
 Preferences    prefs;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
@@ -103,6 +108,7 @@ static bool isMapConnected() { int r=analogRead(PIN_MAP); return r>300&&r<3800; 
 static bool isInjActive()    { return (micros()-lastInjUs)    < 2000000UL; }
 static bool isIacActive()    { return lastIacEdgeUs&&(micros()-lastIacEdgeUs)<2000000UL; }
 static float getIacDuty()    { return iacPeriodUs>0 ? iacHighUs/iacPeriodUs*100.0f : -1.0f; }
+static float getIacFreqHz()  { return iacPeriodUs>0 ? 1000000.0f/iacPeriodUs : 0.0f; }
 
 // ─── Core computation ────────────────────────────────────────────────────────
 static void computeValues(float& rpm, float& adv, float& dwell,
@@ -165,16 +171,17 @@ static void pushToClients()
 {
     float rpm, adv, dwell, frac; int tooth; bool sync;
     computeValues(rpm, adv, dwell, tooth, frac, sync);
-    float mapKpa = isMapConnected() ? readMapKpa() : -1.0f;
-    float injMsV = isInjActive()    ? injMs        : -1.0f;
-    float iacPct = isIacActive()    ? getIacDuty() : -1.0f;
-    float mapV = analogRead(PIN_MAP) * 3.3f / 4095.0f * 1.5f;  // sensor voltage
-    char buf[220];
+    float mapKpa  = isMapConnected() ? readMapKpa()    : -1.0f;
+    float injMsV  = isInjActive()    ? injMs           : -1.0f;
+    float iacPct  = isIacActive()    ? getIacDuty()    : -1.0f;
+    float iacFreq = isIacActive()    ? getIacFreqHz()  :  0.0f;
+    float mapV    = analogRead(PIN_MAP) * 3.3f / 4095.0f * 1.5f;
+    char buf[256];
     snprintf(buf, sizeof(buf),
         "{\"r\":%.0f,\"a\":%.1f,\"d\":%.2f,\"t\":%d,\"f\":%d,\"s\":%d"
-        ",\"m\":%.1f,\"mv\":%.3f,\"i\":%.2f,\"c\":%.1f,\"lc\":%d,\"la\":%d,\"lb\":%d}",
+        ",\"m\":%.1f,\"mv\":%.3f,\"i\":%.2f,\"c\":%.1f,\"cf\":%.1f,\"lc\":%d,\"la\":%d,\"lb\":%d}",
         rpm, adv, dwell, tooth, (int)(frac*100), sync?1:0,
-        mapKpa, mapV, injMsV, iacPct, logCount, logActive?1:0, logBytes);
+        mapKpa, mapV, injMsV, iacPct, iacFreq, logCount, logActive?1:0, logBytes);
     ws.textAll(buf);
 }
 
@@ -198,6 +205,9 @@ void setup()
     mapVmax     = prefs.getFloat("map_vmax",   4.5f);
     mapKpaMin   = prefs.getFloat("map_kmin",  10.0f);
     mapKpaMax   = prefs.getFloat("map_kmax", 105.0f);
+    lblMap      = prefs.getString("lbl_map", "MAP");
+    lblInj      = prefs.getString("lbl_inj", "Injektor");
+    lblIac      = prefs.getString("lbl_iac", "IAC");
 
     LittleFS.begin(true);
 
@@ -296,6 +306,25 @@ void setup()
         prefs.remove("sta_ssid"); prefs.remove("sta_pass");
         req->send(200, "application/json", "{\"ok\":true}");
         delay(500); ESP.restart();
+    });
+
+    // ── Sensor labels ────────────────────────────────────────────────────────
+    server.on("/labels", HTTP_GET, [](AsyncWebServerRequest* req) {
+        char buf[160];
+        snprintf(buf, sizeof(buf),
+            "{\"map\":\"%s\",\"inj\":\"%s\",\"iac\":\"%s\"}",
+            lblMap.c_str(), lblInj.c_str(), lblIac.c_str());
+        req->send(200, "application/json", buf);
+    });
+    server.on("/labels", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (req->hasParam("map",true)) { lblMap=req->getParam("map",true)->value(); prefs.putString("lbl_map",lblMap); }
+        if (req->hasParam("inj",true)) { lblInj=req->getParam("inj",true)->value(); prefs.putString("lbl_inj",lblInj); }
+        if (req->hasParam("iac",true)) { lblIac=req->getParam("iac",true)->value(); prefs.putString("lbl_iac",lblIac); }
+        char buf[160];
+        snprintf(buf, sizeof(buf),
+            "{\"map\":\"%s\",\"inj\":\"%s\",\"iac\":\"%s\"}",
+            lblMap.c_str(), lblInj.c_str(), lblIac.c_str());
+        req->send(200, "application/json", buf);
     });
 
     // ── Sensor config ────────────────────────────────────────────────────────

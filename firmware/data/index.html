@@ -81,9 +81,9 @@ footer a:hover{color:#888}
 </div>
 
 <div class="grid" id="opt-grid" style="display:none">
-  <div class="card opt" id="map-card"><label>MAP</label><div class="val" id="map">—</div><div class="unit">kPa · GPIO34</div></div>
-  <div class="card opt" id="inj-card"><label>Injektor</label><div class="val" id="inj">—</div><div class="unit">ms · GPIO35</div></div>
-  <div class="card opt" id="iac-card"><label>IAC</label><div class="val" id="iac">—</div><div class="unit">% · GPIO32</div></div>
+  <div class="card opt" id="map-card"><label id="card-lbl-map">MAP</label><div class="val" id="map">—</div><div class="unit">kPa · GPIO34</div></div>
+  <div class="card opt" id="inj-card"><label id="card-lbl-inj">Injektor</label><div class="val" id="inj">—</div><div class="unit">ms · GPIO35</div></div>
+  <div class="card opt" id="iac-card"><label id="card-lbl-iac">IAC</label><div class="val" id="iac">—</div><div class="unit" id="iac-unit">% · GPIO32</div></div>
 </div>
 
 <div class="section">
@@ -142,6 +142,33 @@ footer a:hover{color:#888}
       <button class="btn btn-s" onclick="setOffset()">Gem</button>
     </div>
     <p class="hint">Motor skal køre og være synkroniseret for auto-kalibrering. Idle = 10° BTDC (Toyota standard).</p>
+  </div>
+</div>
+
+<!-- Sensor labels -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title">Sensor navne</span>
+    <button class="chev" id="chev-n" onclick="tog('nb','chev-n')">▼</button>
+  </div>
+  <div id="nb" style="display:none">
+    <div class="row">
+      <span class="lbl" style="min-width:60px">MAP</span>
+      <input type="text" id="lbl-map" value="MAP" style="width:130px">
+    </div>
+    <div class="row" style="margin-top:6px">
+      <span class="lbl" style="min-width:60px">INJ</span>
+      <input type="text" id="lbl-inj" value="Injektor" style="width:130px">
+    </div>
+    <div class="row" style="margin-top:6px">
+      <span class="lbl" style="min-width:60px">IAC</span>
+      <input type="text" id="lbl-iac" value="IAC" style="width:130px">
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-o" onclick="saveLabels()">Gem navne</button>
+      <span class="msg" id="lbl-msg"></span>
+    </div>
+    <p class="hint">Navnene vises på sensor-kortene ovenfor.</p>
   </div>
 </div>
 
@@ -302,7 +329,10 @@ function connect(){
     if(d.m>=0){showOpt('map',true);$('map').textContent=d.m.toFixed(1);$('cm').style.display='';}
     else{showOpt('map',false);$('cm').style.display='none';}
     if(d.i>=0){showOpt('inj',true);$('inj').textContent=d.i.toFixed(2);}else showOpt('inj',false);
-    if(d.c>=0){showOpt('iac',true);$('iac').textContent=d.c.toFixed(1);}else showOpt('iac',false);
+    if(d.c>=0){
+      showOpt('iac',true);$('iac').textContent=d.c.toFixed(1);
+      $('iac-unit').textContent=(d.cf>0?d.cf.toFixed(1)+' Hz · ':'')+'% duty · GPIO32';
+    }else showOpt('iac',false);
     $('bar').style.width=Math.min(d.t/35*100,100)+'%';
     $('tooth-val').textContent='Tand '+d.t+'.'+String(d.f).padStart(2,'0')+' / 35';
     logRunning=d.la===1;
@@ -333,6 +363,17 @@ async function setOffset(){
   const fd=new FormData();fd.append('offset',val);
   const r=await fetch('/cal/set',{method:'POST',body:fd});const d=await r.json();
   showMsg('cal-msg',r.ok?'✓ Offset = '+d.offset+'°':'✗ '+d.error,r.ok);
+}
+
+// ── Sensor labels ─────────────────────────────────────────────────────────────
+async function saveLabels() {
+  const fd=new FormData();
+  fd.append('map',$('lbl-map').value.trim()||'MAP');
+  fd.append('inj',$('lbl-inj').value.trim()||'Injektor');
+  fd.append('iac',$('lbl-iac').value.trim()||'IAC');
+  const r=await fetch('/labels',{method:'POST',body:fd});const d=await r.json();
+  $('card-lbl-map').textContent=d.map;$('card-lbl-inj').textContent=d.inj;$('card-lbl-iac').textContent=d.iac;
+  showMsg('lbl-msg',r.ok?'✓ Gemt':'✗ Fejl',r.ok);
 }
 
 // ── MAP sensor config ─────────────────────────────────────────────────────────
@@ -397,6 +438,11 @@ fetch('/wifi/config').then(r=>r.json()).then(d=>{
 fetch('/config').then(r=>r.json()).then(d=>{
   $('map-vmin').value=d.mapVmin.toFixed(2);$('map-vmax').value=d.mapVmax.toFixed(2);
   $('map-kmin').value=d.mapKpaMin.toFixed(0);$('map-kmax').value=d.mapKpaMax.toFixed(0);
+}).catch(()=>{});
+
+fetch('/labels').then(r=>r.json()).then(d=>{
+  $('lbl-map').value=d.map;$('lbl-inj').value=d.inj;$('lbl-iac').value=d.iac;
+  $('card-lbl-map').textContent=d.map;$('card-lbl-inj').textContent=d.inj;$('card-lbl-iac').textContent=d.iac;
 }).catch(()=>{});
 
 connect();

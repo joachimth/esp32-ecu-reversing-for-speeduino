@@ -115,6 +115,8 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 | `/wifi/clear`     | POST     | Ryd STA credentials og nulstil til AP-only                          |
 | `/config`         | GET      | `{mapVmin, mapVmax, mapKpaMin, mapKpaMax}` MAP skalering            |
 | `/config`         | POST     | Sæt MAP skalering (form: `mapVmin=…&mapVmax=…&mapKpaMin=…&mapKpaMax=…`) → gemt i NVS |
+| `/labels`         | GET      | `{map, inj, iac}` sensor-navne                                      |
+| `/labels`         | POST     | Sæt sensor-navne (form: `map=…&inj=…&iac=…`) → gemt i NVS          |
 | `/log/start`      | POST     | Start LittleFS-logning (append til /ignlog.csv)                     |
 | `/log/stop`       | POST     | Stop logning                                                        |
 | `/log/clear`      | POST     | Slet /ignlog.csv og nulstil tæller                                  |
@@ -138,6 +140,7 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 | mv   | MAP sensor-spænding i V (efter ÷1.5 fra GPIO) | —           |
 | i    | Injektor ms                         | -1                    |
 | c    | IAC duty %                          | -1                    |
+| cf   | IAC frekvens Hz                     | 0 = ikke aktiv        |
 | lc   | Log-linjer gemt i /ignlog.csv       | —                     |
 | la   | Log aktiv (0/1)                     | —                     |
 | lb   | Log fil størrelse i bytes           | —                     |
@@ -224,8 +227,9 @@ Web flasher er live på:
 - [x] Kalibrerings-knap i web UI + manuel offset-input (GET /status, POST /cal, POST /cal/set)
 - [x] LittleFS-baseret logging (append til /ignlog.csv, overlever genstart, auto-stop ved fuld FS)
 - [x] WiFi Station mode – forbind til eksisterende WiFi (AP+STA dual mode, NVS-gemt)
-- [x] MAP-sensor konfiguration (custom kPa/V kurve, 4 presets + manuel, NVS-gemt)
-- [ ] Konfigurationspanel: sensor-labels
+- [x] MAP-sensor konfiguration (custom kPa/V kurve, 4 presets + manuel, NVS-gemt, live V-visning)
+- [x] Konfigurationspanel: sensor-labels (brugerdefinerede navne for MAP/INJ/IAC, NVS-gemt)
+- [x] IAC frekvens-visning (Hz ved siden af duty %, hjælper identifikation af solenoid vs stepper)
 - [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
 - [ ] Knock sensor (analog, spektralanalyse på ADC)
 
