@@ -112,7 +112,7 @@ docs/
   manifest.json         ESP Web Tools manifest → releases/latest
 
 .github/workflows/
-  build.yml             CI: byg firmware + LittleFS + release på tag
+  build.yml             CI: 3 jobs → build / deploy-pages / release (på tag)
 ```
 
 ## Build & Flash (lokal)
@@ -139,7 +139,8 @@ git push origin v1.0.0
 ```
 
 ## GitHub Pages (én gang)
-Repo Settings → Pages → Deploy from branch → `main` → `/docs` → Save.
+Repo Settings → Pages → **Source: GitHub Actions** → Save.
+GitHub Actions workflow'en deployer automatisk `docs/` ved hvert push til main.
 Web flasher er herefter live på:
 `https://joachimth.github.io/esp32-ecu-reversing-for-speeduino/`
 

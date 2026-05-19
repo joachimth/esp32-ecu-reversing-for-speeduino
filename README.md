@@ -61,7 +61,7 @@ RPM,ADV,DWELL,TOOTH,SYNC
 ## Første opsætning (én gang)
 
 ### 1. GitHub Pages
-`Settings → Pages → Deploy from branch → main → /docs → Save`
+`Settings → Pages → Source: GitHub Actions → Save`
 
 ### 2. Første release
 ```bash
