@@ -22,6 +22,7 @@ volatile uint32_t lastToothUs   = 0;
 volatile uint32_t toothPeriodUs = 0;
 volatile int      toothCount    = 0;
 volatile bool     synced        = false;
+volatile uint32_t syncCount     = 0;  // missing-tooth events since boot
 
 volatile uint32_t dwellStartUs  = 0;
 volatile float    dwellMs       = 0;
@@ -68,7 +69,7 @@ void IRAM_ATTR crankISR()
 {
     uint32_t now = micros(), dt = now - lastToothUs;
     if (toothPeriodUs > 0) {
-        if (dt > toothPeriodUs * 1.7f) { toothCount = 0; synced = true; }
+        if (dt > toothPeriodUs * 1.7f) { toothCount = 0; synced = true; syncCount++; }
         else if (++toothCount >= 36)    toothCount = 0;
     }
     toothPeriodUs = dt; lastToothUs = now;
@@ -190,10 +191,11 @@ static void pushToClients()
     float iacFreq = isIacActive()    ? getIacFreqHz()  :  0.0f;
     float mapV    = readMapADC() * 3.3f / 4095.0f * 1.5f;
     char buf[256];
+    noInterrupts(); uint32_t sc = syncCount; interrupts();
     snprintf(buf, sizeof(buf),
-        "{\"r\":%.0f,\"a\":%.1f,\"d\":%.2f,\"t\":%d,\"f\":%d,\"s\":%d"
+        "{\"r\":%.0f,\"a\":%.1f,\"d\":%.2f,\"t\":%d,\"f\":%d,\"s\":%d,\"sc\":%lu"
         ",\"m\":%.1f,\"mv\":%.3f,\"i\":%.2f,\"c\":%.1f,\"cf\":%.1f,\"lc\":%d,\"la\":%d,\"lb\":%d}",
-        rpm, adv, dwell, tooth, (int)(frac*100), sync?1:0,
+        rpm, adv, dwell, tooth, (int)(frac*100), sync?1:0, (unsigned long)sc,
         mapKpa, mapV, injMsV, iacPct, iacFreq, logCount, logActive?1:0, logBytes);
     ws.textAll(buf);
 }

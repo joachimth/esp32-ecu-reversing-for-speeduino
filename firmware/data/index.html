@@ -91,7 +91,10 @@ footer a:hover{color:#888}
 </div>
 
 <div class="section">
-  <div class="sec-head"><span class="sec-title">Tand position · 0–35</span></div>
+  <div class="sec-head">
+    <span class="sec-title">Tand position · 0–35</span>
+    <span class="lbl" id="sync-count" style="font-size:.65rem"></span>
+  </div>
   <div class="bar-bg"><div class="bar" id="bar"></div></div>
   <div class="bar-lbl" id="tooth-val">—</div>
 </div>
@@ -355,6 +358,7 @@ function connect(){
     }else showOpt('iac',false);
     $('bar').style.width=Math.min(d.t/35*100,100)+'%';
     $('tooth-val').textContent='Tand '+d.t+'.'+String(d.f).padStart(2,'0')+' / 35';
+    if(d.sc!==undefined)$('sync-count').textContent='syncs: '+d.sc;
     logRunning=d.la===1;
     $('log-btn').textContent=logRunning?'⏹ Stop':'▶ Start';
     $('log-btn').classList.toggle('on',logRunning);
