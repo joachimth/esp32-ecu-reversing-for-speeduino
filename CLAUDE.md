@@ -124,7 +124,7 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 
 ## WebSocket JSON-format
 ```json
-{"r":875,"a":10.2,"d":3.14,"t":20,"f":51,"s":1,"m":98.5,"i":2.30,"c":45.0,"lc":150,"la":1,"lb":30720}
+{"r":875,"a":10.2,"d":3.14,"t":20,"f":51,"s":1,"m":98.5,"mv":1.234,"i":2.30,"c":45.0,"lc":150,"la":1,"lb":30720}
 ```
 | Felt | Beskrivelse                         | -1 = ikke tilgængelig |
 |------|-------------------------------------|-----------------------|
@@ -134,7 +134,8 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 | t    | Tand (0–35)                         | —                     |
 | f    | Fraktion × 100                      | —                     |
 | s    | Sync (0/1)                          | —                     |
-| m    | MAP kPa                             | -1                    |
+| m    | MAP kPa (beregnet)                  | -1                    |
+| mv   | MAP sensor-spænding i V (efter ÷1.5 fra GPIO) | —           |
 | i    | Injektor ms                         | -1                    |
 | c    | IAC duty %                          | -1                    |
 | lc   | Log-linjer gemt i /ignlog.csv       | —                     |

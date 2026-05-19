@@ -168,12 +168,13 @@ static void pushToClients()
     float mapKpa = isMapConnected() ? readMapKpa() : -1.0f;
     float injMsV = isInjActive()    ? injMs        : -1.0f;
     float iacPct = isIacActive()    ? getIacDuty() : -1.0f;
-    char buf[192];
+    float mapV = analogRead(PIN_MAP) * 3.3f / 4095.0f * 1.5f;  // sensor voltage
+    char buf[220];
     snprintf(buf, sizeof(buf),
         "{\"r\":%.0f,\"a\":%.1f,\"d\":%.2f,\"t\":%d,\"f\":%d,\"s\":%d"
-        ",\"m\":%.1f,\"i\":%.2f,\"c\":%.1f,\"lc\":%d,\"la\":%d,\"lb\":%d}",
+        ",\"m\":%.1f,\"mv\":%.3f,\"i\":%.2f,\"c\":%.1f,\"lc\":%d,\"la\":%d,\"lb\":%d}",
         rpm, adv, dwell, tooth, (int)(frac*100), sync?1:0,
-        mapKpa, injMsV, iacPct, logCount, logActive?1:0, logBytes);
+        mapKpa, mapV, injMsV, iacPct, logCount, logActive?1:0, logBytes);
     ws.textAll(buf);
 }
 

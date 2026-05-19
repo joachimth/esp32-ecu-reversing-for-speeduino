@@ -152,6 +152,11 @@ footer a:hover{color:#888}
     <button class="chev" id="chev-m" onclick="tog('mcb','chev-m')">▼</button>
   </div>
   <div id="mcb" style="display:none">
+    <div class="row" style="margin-bottom:8px">
+      <span class="lbl">Aktuel sensor-V:</span>
+      <span class="val" id="map-v-live" style="font-size:1.1rem;color:#64b5f6">—</span>
+      <span class="lbl">V</span>
+    </div>
     <div class="row">
       <span class="lbl">Forudindstilling:</span>
       <button class="btn btn-s" onclick="setPreset(0.5,4.5,10,105)">Bosch 1-bar</button>
@@ -162,6 +167,7 @@ footer a:hover{color:#888}
     <div class="row" style="margin-top:10px">
       <span class="lbl">Vmin (V)</span>
       <input type="number" id="map-vmin" step="0.01" min="0" max="5" value="0.50" style="width:72px">
+      <button class="btn btn-s" style="font-size:.7rem;padding:4px 8px" onclick="useCurrentV('map-vmin')">Brug aktuel</button>
       <span class="lbl">→</span>
       <input type="number" id="map-kmin" step="1" min="0" max="400" value="10" style="width:72px">
       <span class="lbl">kPa</span>
@@ -169,6 +175,7 @@ footer a:hover{color:#888}
     <div class="row" style="margin-top:6px">
       <span class="lbl">Vmax (V)</span>
       <input type="number" id="map-vmax" step="0.01" min="0" max="5" value="4.50" style="width:72px">
+      <button class="btn btn-s" style="font-size:.7rem;padding:4px 8px" onclick="useCurrentV('map-vmax')">Brug aktuel</button>
       <span class="lbl">→</span>
       <input type="number" id="map-kmax" step="1" min="0" max="400" value="105" style="width:72px">
       <span class="lbl">kPa</span>
@@ -177,7 +184,7 @@ footer a:hover{color:#888}
       <button class="btn btn-o" onclick="saveMapCfg()">Gem skalering</button>
       <span class="msg" id="map-cfg-msg"></span>
     </div>
-    <p class="hint">Sensor-spænding efter 10k/20k spændingsdeler. Vmin/Vmax = faktisk sensor-udgang (×1.5 for GPIO-spænding).</p>
+    <p class="hint">Sensor-spænding efter 10k/20k spændingsdeler (=faktisk sensor V). "Brug aktuel" fanger den live målte spænding.</p>
   </div>
 </div>
 
@@ -276,6 +283,7 @@ function connect(){
     isSynced=d.s===1;
     const se=$('sync');se.textContent=isSynced?'OK':'NEJ';se.className='val '+(isSynced?'ok':'nok');
     $('cal-btn').disabled=!isSynced;$('cal-btn').classList.toggle('ok',isSynced);
+    if(d.mv!==undefined){_mapVLive=d.mv;$('map-v-live').textContent=d.mv.toFixed(3);}
     if(d.m>=0){showOpt('map',true);$('map').textContent=d.m.toFixed(1);$('cm').style.display='';}
     else{showOpt('map',false);$('cm').style.display='none';}
     if(d.i>=0){showOpt('inj',true);$('inj').textContent=d.i.toFixed(2);}else showOpt('inj',false);
@@ -313,10 +321,12 @@ async function setOffset(){
 }
 
 // ── MAP sensor config ─────────────────────────────────────────────────────────
+let _mapVLive = 0;
 function setPreset(vmin, vmax, kmin, kmax) {
   $('map-vmin').value=vmin.toFixed(2);$('map-vmax').value=vmax.toFixed(2);
   $('map-kmin').value=kmin;$('map-kmax').value=kmax;
 }
+function useCurrentV(fieldId) { $(fieldId).value=_mapVLive.toFixed(3); }
 async function saveMapCfg() {
   const fd=new FormData();
   fd.append('mapVmin',  parseFloat($('map-vmin').value));
