@@ -288,6 +288,48 @@ void setup()
         req->send(resp);
     });
 
+    // ── Status + Kalibrering ─────────────────────────────────────────────────
+    server.on("/status", HTTP_GET, [](AsyncWebServerRequest* req) {
+        noInterrupts(); bool s = synced; interrupts();
+        char buf[64];
+        snprintf(buf, sizeof(buf), "{\"offset\":%.1f,\"synced\":%d}",
+                 calibOffset, s ? 1 : 0);
+        req->send(200, "application/json", buf);
+    });
+
+    server.on("/cal", HTTP_POST, [](AsyncWebServerRequest* req) {
+        noInterrupts(); bool s = synced; int tc = toothCount; interrupts();
+        if (!s) {
+            req->send(400, "application/json",
+                      "{\"error\":\"Motor ikke synkroniseret\"}");
+            return;
+        }
+        calibOffset = tc * 10.0f + 10.0f;
+        prefs.putFloat("offset", calibOffset);
+        char buf[40];
+        snprintf(buf, sizeof(buf), "{\"offset\":%.1f}", calibOffset);
+        Serial.printf("CAL (web): offset=%.1f\n", calibOffset);
+        req->send(200, "application/json", buf);
+    });
+
+    server.on("/cal/set", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (!req->hasParam("offset", true)) {
+            req->send(400, "application/json", "{\"error\":\"missing offset\"}");
+            return;
+        }
+        float val = req->getParam("offset", true)->value().toFloat();
+        if (val < 1.0f || val > 359.0f) {
+            req->send(400, "application/json", "{\"error\":\"invalid range\"}");
+            return;
+        }
+        calibOffset = val;
+        prefs.putFloat("offset", calibOffset);
+        char buf[40];
+        snprintf(buf, sizeof(buf), "{\"offset\":%.1f}", calibOffset);
+        Serial.printf("CAL (set): offset=%.1f\n", calibOffset);
+        req->send(200, "application/json", buf);
+    });
+
     // ── Catch-all captive portal ──────────────────────────────────────────────
     server.onNotFound([](AsyncWebServerRequest* req) {
         req->redirect("http://192.168.4.1/");
