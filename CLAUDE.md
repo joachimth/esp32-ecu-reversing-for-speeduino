@@ -107,7 +107,7 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 |-------------------|----------|---------------------------------------------------------------------|
 | `/`               | GET      | Live dashboard (LittleFS)                                           |
 | `/ws`             | WS       | WebSocket → JSON @ 5 Hz                                             |
-| `/status`         | GET      | `{offset, synced, logActive, logBytes, fsFree, fsTotal, staConnected, staIP}` |
+| `/status`         | GET      | `{offset, synced, logActive, logBytes, fsFree, fsTotal, staConnected, staIP, uptime, freeHeap, apClients, rssi}` |
 | `/cal`            | POST     | Auto-kalibrering (kræver sync) → `{offset}`                         |
 | `/cal/set`        | POST     | Manuel offset (form: `offset=215`) → `{offset}`                     |
 | `/wifi/config`    | GET      | `{ssid, connected, ip}` for STA-tilstand                            |
@@ -126,24 +126,25 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 
 ## WebSocket JSON-format
 ```json
-{"r":875,"a":10.2,"d":3.14,"t":20,"f":51,"s":1,"m":98.5,"mv":1.234,"i":2.30,"c":45.0,"lc":150,"la":1,"lb":30720}
+{"r":875,"a":10.2,"d":3.14,"t":20,"f":51,"s":1,"sc":120,"m":98.5,"mv":1.234,"i":2.30,"c":45.0,"cf":14.2,"lc":150,"la":1,"lb":30720}
 ```
-| Felt | Beskrivelse                         | -1 = ikke tilgængelig |
-|------|-------------------------------------|-----------------------|
-| r    | RPM                                 | —                     |
-| a    | Advance °BTDC                       | —                     |
-| d    | Dwell ms                            | —                     |
-| t    | Tand (0–35)                         | —                     |
-| f    | Fraktion × 100                      | —                     |
-| s    | Sync (0/1)                          | —                     |
-| m    | MAP kPa (beregnet)                  | -1                    |
-| mv   | MAP sensor-spænding i V (efter ÷1.5 fra GPIO) | —           |
-| i    | Injektor ms                         | -1                    |
-| c    | IAC duty %                          | -1                    |
-| cf   | IAC frekvens Hz                     | 0 = ikke aktiv        |
-| lc   | Log-linjer gemt i /ignlog.csv       | —                     |
-| la   | Log aktiv (0/1)                     | —                     |
-| lb   | Log fil størrelse i bytes           | —                     |
+| Felt | Beskrivelse                                    | -1 = ikke tilgængelig |
+|------|------------------------------------------------|-----------------------|
+| r    | RPM                                            | —                     |
+| a    | Advance °BTDC                                  | —                     |
+| d    | Dwell ms                                       | —                     |
+| t    | Tand (0–35)                                    | —                     |
+| f    | Fraktion × 100                                 | —                     |
+| s    | Sync (0/1)                                     | —                     |
+| sc   | Sync-tæller (missing-tooth events siden boot)  | —                     |
+| m    | MAP kPa (beregnet via konfigureret kurve)      | -1                    |
+| mv   | MAP sensor-spænding i V (GPIO × 1.5 divider)   | —                     |
+| i    | Injektor ms                                    | -1                    |
+| c    | IAC duty %                                     | -1                    |
+| cf   | IAC frekvens Hz                                | 0 = ikke aktiv        |
+| lc   | Log-linjer gemt i /ignlog.csv                  | —                     |
+| la   | Log aktiv (0/1)                                | —                     |
+| lb   | Log fil størrelse i bytes                      | —                     |
 
 ## CSV log-format
 ```
@@ -154,6 +155,10 @@ timestamp_ms,rpm,adv_btdc,dwell_ms,tooth,frac,sync,map_kpa,inj_ms,iac_pct
 Tomme felter = sensor ikke tilsluttet.
 **Logfil**: `/ignlog.csv` i LittleFS. Append-mode, overlever genstart. Auto-stop når <1 KB fri.
 Flush-interval: hver 5. write. Hentes via GET `/log.csv`. Slettes via POST `/log/clear`.
+Første linje i ny fil er metadata-kommentar:
+```
+# OEM Ignition Logger | offset=215.0 | MAP Bosch=0.50V–4.50V 10–105kPa
+```
 
 ## Biblioteker
 ```
@@ -230,8 +235,13 @@ Web flasher er live på:
 - [x] MAP-sensor konfiguration (custom kPa/V kurve, 4 presets + manuel, NVS-gemt, live V-visning)
 - [x] Konfigurationspanel: sensor-labels (brugerdefinerede navne for MAP/INJ/IAC, NVS-gemt)
 - [x] IAC frekvens-visning (Hz ved siden af duty %, hjælper identifikation af solenoid vs stepper)
+- [x] Session min/max tracking på alle gauge-kort (reset-knap i header)
+- [x] System diagnostik-panel (oppetid, fri heap, AP klienter, STA RSSI, flash-plads) @ 10s
+- [x] MAP ADC 8× oversampling (reducerer ESP32 ADC-støj med ~3×)
+- [x] Sync-tæller (sc) i WebSocket – viser missing-tooth events siden boot i tooth-sektionen
+- [x] CSV metadata-kommentar i logfil-header (offset + MAP skalering)
 - [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
-- [ ] Knock sensor (analog, spektralanalyse på ADC)
+- [ ] Knock sensor (analog, spektralanalyse på ADC – GPIO33 reserved)
 
 ### v2 – OLED standalone display
 - [ ] SSD1306 128x64 OLED via I2C (GPIO21=SDA, GPIO22=SCL)
