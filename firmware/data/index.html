@@ -15,59 +15,51 @@ h1{font-size:1.2rem;font-weight:700;color:#ff8c00}
 #dot{width:9px;height:9px;border-radius:50%;background:#333;flex-shrink:0;transition:background .3s}
 #dot.ok{background:#4caf50;box-shadow:0 0 7px #4caf5055}
 #dot.err{background:#f44336}
-/* gauges */
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:580px}
 .card{background:#161616;border:1px solid #222;border-radius:12px;padding:14px 12px;text-align:center}
 .card label{font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:#555;display:block;margin-bottom:6px}
 .val{font-size:2.4rem;font-weight:800;line-height:1;color:#ff8c00;font-variant-numeric:tabular-nums;transition:color .2s}
 .unit{font-size:.67rem;color:#333;margin-top:4px}
-.sync .val{color:#555}
-.sync .val.ok{color:#4caf50}
-.sync .val.nok{color:#f44336}
-/* optional sensors */
-.opt{display:none}
-.opt.on{display:block}
-/* tooth bar */
+.sync .val{color:#555}.sync .val.ok{color:#4caf50}.sync .val.nok{color:#f44336}
+.opt{display:none}.opt.on{display:block}
+/* sections */
 .section{margin-top:10px;width:100%;max-width:580px;
   background:#161616;border:1px solid #222;border-radius:12px;padding:14px 16px}
 .sec-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .sec-title{font-size:.65rem;text-transform:uppercase;letter-spacing:.12em;color:#555}
+/* bar */
 .bar-bg{height:8px;background:#1e1e1e;border-radius:4px;overflow:hidden}
 .bar{height:100%;width:0%;background:linear-gradient(90deg,#ff8c00,#ffb347);border-radius:4px;transition:width .15s}
 .bar-lbl{font-size:.72rem;color:#333;margin-top:5px;text-align:right}
 /* charts */
 canvas{display:block;width:100%;height:72px;background:#111;border-radius:6px}
 canvas+canvas{margin-top:6px}
-/* panels */
-.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.row+.row{margin-top:8px}
 /* buttons */
 .btn{border:0;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:.8rem;
   font-family:inherit;transition:background .15s;white-space:nowrap}
-.btn-g{background:#1a3a1a;color:#4caf50}
-.btn-g.on{background:#4caf50;color:#000}
-.btn-o{background:#3a2000;color:#ff8c00}
-.btn-o.ok{background:#ff8c00;color:#000}
+.btn-g{background:#1a3a1a;color:#4caf50}.btn-g.on{background:#4caf50;color:#000}
+.btn-o{background:#3a2000;color:#ff8c00}.btn-o.ok{background:#ff8c00;color:#000}
 .btn-o:disabled{background:#222;color:#444;cursor:not-allowed}
 .btn-s{background:#1e1e1e;color:#888;border:1px solid #2a2a2a}
 .btn-s:hover{color:#bbb;background:#252525}
 .btn-dl{background:#0e2338;color:#64b5f6;border:1px solid #1a3a5a;
   text-decoration:none;display:inline-flex;align-items:center;gap:4px}
 .btn-dl:hover{background:#1a3a5a}
-/* inputs */
-input[type=number]{background:#111;border:1px solid #2a2a2a;border-radius:6px;
-  color:#e0e0e0;padding:6px 10px;width:90px;font-size:.85rem;font-family:inherit}
-input[type=number]:focus{outline:none;border-color:#ff8c00}
-/* status msg */
+input[type=text],input[type=password],input[type=number]{
+  background:#111;border:1px solid #2a2a2a;border-radius:6px;
+  color:#e0e0e0;padding:6px 10px;font-size:.85rem;font-family:inherit}
+input:focus{outline:none;border-color:#ff8c00}
+input[type=number]{width:90px}
+input[type=text],input[type=password]{width:150px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row+.row{margin-top:8px}
 .msg{font-size:.75rem;padding:4px 10px;border-radius:6px;display:none}
 .msg.ok{display:inline-block;background:#1a3a1a;color:#4caf50}
 .msg.err{display:inline-block;background:#3a1010;color:#f44336}
-/* toggle chevron */
-.chev{background:none;border:none;color:#444;cursor:pointer;font-size:.85rem;padding:0 4px;line-height:1}
+.chev{background:none;border:none;color:#444;cursor:pointer;font-size:.85rem;padding:0 4px}
 .chev:hover{color:#888}
-/* misc */
+.hint{font-size:.67rem;color:#2a2a2a;margin-top:8px;line-height:1.5}
 .lbl{font-size:.72rem;color:#555}
-.sep{margin-top:10px}
 footer{margin-top:12px;font-size:.68rem;color:#2a2a2a}
 footer a{color:#444;text-decoration:none}
 footer a:hover{color:#888}
@@ -81,7 +73,6 @@ footer a:hover{color:#888}
   <div class="conn"><span id="status">Forbinder...</span><span id="dot"></span></div>
 </header>
 
-<!-- Primære målinger -->
 <div class="grid">
   <div class="card"><label>RPM</label><div class="val" id="rpm">—</div><div class="unit">omdrejninger/min</div></div>
   <div class="card"><label>Advance</label><div class="val" id="adv">—</div><div class="unit">° BTDC</div></div>
@@ -89,27 +80,25 @@ footer a:hover{color:#888}
   <div class="card sync"><label>Sync</label><div class="val" id="sync">—</div><div class="unit">missing tooth lock</div></div>
 </div>
 
-<!-- Valgfrie sensorer -->
 <div class="grid" id="opt-grid" style="display:none">
-  <div class="card opt" id="map-card"><label>MAP</label><div class="val" id="map">—</div><div class="unit">kPa (GPIO34)</div></div>
-  <div class="card opt" id="inj-card"><label>Injektor</label><div class="val" id="inj">—</div><div class="unit">ms (GPIO35)</div></div>
-  <div class="card opt" id="iac-card"><label>IAC</label><div class="val" id="iac">—</div><div class="unit">% (GPIO32)</div></div>
+  <div class="card opt" id="map-card"><label>MAP</label><div class="val" id="map">—</div><div class="unit">kPa · GPIO34</div></div>
+  <div class="card opt" id="inj-card"><label>Injektor</label><div class="val" id="inj">—</div><div class="unit">ms · GPIO35</div></div>
+  <div class="card opt" id="iac-card"><label>IAC</label><div class="val" id="iac">—</div><div class="unit">% · GPIO32</div></div>
 </div>
 
-<!-- Tand-position -->
 <div class="section">
-  <div class="sec-head"><span class="sec-title">Tand position (0–35)</span></div>
+  <div class="sec-head"><span class="sec-title">Tand position · 0–35</span></div>
   <div class="bar-bg"><div class="bar" id="bar"></div></div>
   <div class="bar-lbl" id="tooth-val">—</div>
 </div>
 
 <!-- Grafer -->
-<div class="section sep">
+<div class="section" style="margin-top:10px">
   <div class="sec-head">
     <span class="sec-title">Grafer · 60 sek</span>
-    <button class="chev" id="chev-charts" onclick="toggleSec('charts-body','chev-charts')">▲</button>
+    <button class="chev" id="chev-c" onclick="tog('cb','chev-c')">▲</button>
   </div>
-  <div id="charts-body">
+  <div id="cb">
     <canvas id="cr"></canvas>
     <canvas id="ca"></canvas>
     <canvas id="cm" style="display:none"></canvas>
@@ -117,202 +106,204 @@ footer a:hover{color:#888}
 </div>
 
 <!-- Logning -->
-<div class="section sep">
+<div class="section" style="margin-top:10px">
   <div class="sec-head">
-    <span class="sec-title">Rå datalogning</span>
-    <button class="chev" id="chev-log" onclick="toggleSec('log-body','chev-log')">▲</button>
+    <span class="sec-title">Datalogning · LittleFS</span>
+    <button class="chev" id="chev-l" onclick="tog('lb','chev-l')">▲</button>
   </div>
-  <div id="log-body">
+  <div id="lb">
     <div class="row">
       <button class="btn btn-g" id="log-btn" onclick="toggleLog()">▶ Start</button>
       <button class="btn btn-s" onclick="clearLog()">Ryd</button>
       <a class="btn btn-dl" href="/log.csv" download="ignlog.csv">⬇ CSV</a>
-      <span class="lbl" id="log-count">0 / 1500</span>
     </div>
+    <div class="row" style="margin-top:8px">
+      <span class="lbl" id="log-info">0 linjer · 0 KB</span>
+      <span class="lbl" id="fs-info" style="margin-left:8px"></span>
+    </div>
+    <p class="hint">Data gemmes på flash og overlever genstart. Maks. ~3000 linjer (≈10 min @ 5 Hz).</p>
   </div>
 </div>
 
 <!-- Kalibrering -->
-<div class="section sep">
+<div class="section" style="margin-top:10px">
   <div class="sec-head">
     <span class="sec-title">Kalibrering</span>
-    <button class="chev" id="chev-cal" onclick="toggleSec('cal-body','chev-cal')">▲</button>
+    <button class="chev" id="chev-k" onclick="tog('kb','chev-k')">▲</button>
   </div>
-  <div id="cal-body">
+  <div id="kb">
     <div class="row">
-      <button class="btn btn-o" id="cal-btn" onclick="doAutoCal()" disabled>
-        ⊙ Kalibrér ved idle
-      </button>
+      <button class="btn btn-o" id="cal-btn" onclick="doAutoCal()" disabled>⊙ Kalibrér ved idle</button>
       <span class="msg" id="cal-msg"></span>
     </div>
-    <div class="row" style="margin-top:10px">
+    <div class="row" style="margin-top:8px">
       <span class="lbl">Manuel offset</span>
       <input type="number" id="cal-val" min="1" max="359" step="1" value="215">
       <button class="btn btn-s" onclick="setOffset()">Gem</button>
     </div>
-    <p style="font-size:.68rem;color:#333;margin-top:8px">
-      Motor skal køre og være synkroniseret for auto-kalibrering.
-      Idle = 10° BTDC (Toyota standard).
-    </p>
+    <p class="hint">Motor skal køre og være synkroniseret for auto-kalibrering. Idle = 10° BTDC (Toyota standard).</p>
   </div>
 </div>
 
-<footer class="sep"><a href="/update">OTA firmware &#8594;</a></footer>
+<!-- WiFi Station -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title" id="wifi-title">WiFi Station</span>
+    <button class="chev" id="chev-w" onclick="tog('wb','chev-w')">▼</button>
+  </div>
+  <div id="wb" style="display:none">
+    <div class="row" style="margin-bottom:8px">
+      <span class="msg" id="wifi-msg"></span>
+    </div>
+    <div class="row">
+      <input type="text" id="wifi-ssid" placeholder="Netværksnavn (SSID)">
+      <input type="password" id="wifi-pass" placeholder="Password">
+      <button class="btn btn-s" onclick="saveWifi()">Forbind</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn btn-s" id="wifi-clear" style="display:none" onclick="clearWifi()">Fjern forbindelse</button>
+    </div>
+    <p class="hint">ESP32 genstarter ved ændring. AP (192.168.4.1) er altid tilgængeligt.</p>
+  </div>
+</div>
+
+<footer style="margin-top:12px"><a href="/update">OTA firmware &#8594;</a></footer>
 
 <script>
 const $ = id => document.getElementById(id);
 let ws, retryT, logRunning = false, isSynced = false;
 
-// ── UI helpers ────────────────────────────────────────────────────────────────
 function setConn(ok) {
   $('status').textContent = ok ? 'Forbundet' : 'Afbrudt...';
   $('dot').className = ok ? 'ok' : 'err';
 }
-
 function showOpt(id, on) {
-  const c = $(id+'-card');
-  c.classList.toggle('on', on);
+  $(id+'-card').classList.toggle('on', on);
   const any = ['map','inj','iac'].some(x=>$(x+'-card').classList.contains('on'));
   $('opt-grid').style.display = any ? '' : 'none';
 }
-
 function showMsg(id, txt, ok, ms=3000) {
-  const el = $(id);
-  el.textContent = txt;
-  el.className = 'msg ' + (ok ? 'ok' : 'err');
+  const el=$(id); el.textContent=txt; el.className='msg '+(ok?'ok':'err');
   if (ms) setTimeout(()=>el.className='msg', ms);
 }
-
-function toggleSec(bodyId, chevId) {
-  const b = $(bodyId), c = $(chevId);
-  const open = b.style.display !== 'none';
-  b.style.display = open ? 'none' : '';
-  c.textContent = open ? '▼' : '▲';
+function tog(bodyId, chevId) {
+  const b=$(bodyId),c=$(chevId),open=b.style.display!=='none';
+  b.style.display=open?'none':''; c.textContent=open?'▼':'▲';
 }
+function fmtBytes(b) { return b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB'; }
 
-// ── Charts ───────────────────────────────────────────────────────────────────
-const cd = {r:[], a:[], m:[]};
-const MAX = 300; // 60 s @ 5 Hz
-
-function addPt(arr, v) { arr.push(v); if (arr.length > MAX) arr.shift(); }
-
-function drawChart(cvId, data, color, label, unit) {
-  const cv = $(cvId);
-  if (!cv || cv.style.display === 'none' || data.length < 2) return;
-  const W = cv.clientWidth || 540, H = 72;
-  cv.width = W; cv.height = H;
-  const c = cv.getContext('2d');
-  const PL=38, PR=6, PT=5, PB=16;
-  c.fillStyle = '#111'; c.fillRect(0, 0, W, H);
-  let mn = Math.min(...data), mx = Math.max(...data);
-  const rng = mx - mn || 10; mn -= rng * .12; mx += rng * .12;
-  c.strokeStyle = '#1a1a1a'; c.lineWidth = 1;
-  for (let i = 0; i <= 3; i++) {
-    const y = PT + (H-PT-PB)*i/3;
-    c.beginPath(); c.moveTo(PL,y); c.lineTo(W-PR,y); c.stroke();
-    c.fillStyle = '#3a3a3a'; c.font = '9px monospace'; c.textAlign = 'right';
-    c.fillText((mx-(mx-mn)*i/3).toFixed(0), PL-2, y+3);
+// ── Charts ─────────────────────────────────────────────────────────────────
+const cd={r:[],a:[],m:[]}, MAX=300;
+function addPt(a,v){a.push(v);if(a.length>MAX)a.shift();}
+function drawChart(cvId,data,color,label,unit){
+  const cv=$(cvId);
+  if(!cv||cv.style.display==='none'||data.length<2)return;
+  const W=cv.clientWidth||540,H=72;
+  cv.width=W;cv.height=H;
+  const c=cv.getContext('2d');
+  const PL=38,PR=6,PT=5,PB=16;
+  c.fillStyle='#111';c.fillRect(0,0,W,H);
+  let mn=Math.min(...data),mx=Math.max(...data);
+  const rng=mx-mn||10;mn-=rng*.12;mx+=rng*.12;
+  c.strokeStyle='#1a1a1a';c.lineWidth=1;
+  for(let i=0;i<=3;i++){
+    const y=PT+(H-PT-PB)*i/3;
+    c.beginPath();c.moveTo(PL,y);c.lineTo(W-PR,y);c.stroke();
+    c.fillStyle='#3a3a3a';c.font='9px monospace';c.textAlign='right';
+    c.fillText((mx-(mx-mn)*i/3).toFixed(0),PL-2,y+3);
   }
-  c.fillStyle = '#444'; c.font = '10px sans-serif'; c.textAlign = 'left';
-  c.fillText(label+' ['+unit+']', PL+2, H-3);
-  c.strokeStyle = color; c.lineWidth = 1.5; c.beginPath();
-  const dx = (W-PL-PR) / (MAX-1);
-  const off = MAX - data.length;
-  data.forEach((v,i) => {
-    const x = PL + (off+i)*dx;
-    const y = PT + (H-PT-PB) * (1-(v-mn)/(mx-mn));
-    i ? c.lineTo(x,y) : c.moveTo(x,y);
-  });
+  c.fillStyle='#444';c.font='10px sans-serif';c.textAlign='left';
+  c.fillText(label+' ['+unit+']',PL+2,H-3);
+  c.strokeStyle=color;c.lineWidth=1.5;c.beginPath();
+  const dx=(W-PL-PR)/(MAX-1),off=MAX-data.length;
+  data.forEach((v,i)=>{const x=PL+(off+i)*dx,y=PT+(H-PT-PB)*(1-(v-mn)/(mx-mn));i?c.lineTo(x,y):c.moveTo(x,y);});
   c.stroke();
 }
-
-function redrawCharts() {
-  drawChart('cr', cd.r, '#ff8c00', 'RPM', 'rpm');
-  drawChart('ca', cd.a, '#64b5f6', 'Advance', '°BTDC');
-  if ($('cm').style.display !== 'none')
-    drawChart('cm', cd.m, '#81c784', 'MAP', 'kPa');
+function redraw(){
+  drawChart('cr',cd.r,'#ff8c00','RPM','rpm');
+  drawChart('ca',cd.a,'#64b5f6','Advance','°BTDC');
+  if($('cm').style.display!=='none')drawChart('cm',cd.m,'#81c784','MAP','kPa');
 }
 
-// ── WebSocket ─────────────────────────────────────────────────────────────────
-function connect() {
+// ── WebSocket ───────────────────────────────────────────────────────────────
+function connect(){
   clearTimeout(retryT);
-  ws = new WebSocket('ws://'+location.host+'/ws');
-  ws.onopen  = () => setConn(true);
-  ws.onerror = () => ws.close();
-  ws.onclose = () => { setConn(false); retryT = setTimeout(connect, 2000); };
-  ws.onmessage = e => {
-    let d; try { d = JSON.parse(e.data); } catch { return; }
-
-    $('rpm').textContent   = d.r.toFixed(0);
-    $('adv').textContent   = d.a.toFixed(1);
-    $('dwell').textContent = d.d.toFixed(2);
-
-    isSynced = d.s === 1;
-    const se = $('sync');
-    se.textContent = isSynced ? 'OK' : 'NEJ';
-    se.className   = 'val '+(isSynced?'ok':'nok');
-
-    $('cal-btn').disabled = !isSynced;
-    $('cal-btn').classList.toggle('ok', isSynced);
-
-    if (d.m >= 0) { showOpt('map',true);  $('map').textContent=d.m.toFixed(1); $('cm').style.display=''; }
-    else          { showOpt('map',false); $('cm').style.display='none'; }
-    if (d.i >= 0) { showOpt('inj',true);  $('inj').textContent=d.i.toFixed(2); }
-    else            showOpt('inj',false);
-    if (d.c >= 0) { showOpt('iac',true);  $('iac').textContent=d.c.toFixed(1); }
-    else            showOpt('iac',false);
-
-    $('bar').style.width = Math.min(d.t/35*100,100)+'%';
-    $('tooth-val').textContent = 'Tand '+d.t+'.'+String(d.f).padStart(2,'0')+' / 35';
-
-    logRunning = d.la === 1;
-    $('log-btn').textContent = logRunning ? '⏹ Stop' : '▶ Start';
-    $('log-btn').classList.toggle('on', logRunning);
-    $('log-count').textContent = d.lc+' / 1500';
-
-    addPt(cd.r, d.r);
-    addPt(cd.a, d.a);
-    if (d.m >= 0) addPt(cd.m, d.m);
-    redrawCharts();
+  ws=new WebSocket('ws://'+location.host+'/ws');
+  ws.onopen=()=>setConn(true);
+  ws.onerror=()=>ws.close();
+  ws.onclose=()=>{setConn(false);retryT=setTimeout(connect,2000);};
+  ws.onmessage=e=>{
+    let d;try{d=JSON.parse(e.data);}catch{return;}
+    $('rpm').textContent=d.r.toFixed(0);
+    $('adv').textContent=d.a.toFixed(1);
+    $('dwell').textContent=d.d.toFixed(2);
+    isSynced=d.s===1;
+    const se=$('sync');se.textContent=isSynced?'OK':'NEJ';se.className='val '+(isSynced?'ok':'nok');
+    $('cal-btn').disabled=!isSynced;$('cal-btn').classList.toggle('ok',isSynced);
+    if(d.m>=0){showOpt('map',true);$('map').textContent=d.m.toFixed(1);$('cm').style.display='';}
+    else{showOpt('map',false);$('cm').style.display='none';}
+    if(d.i>=0){showOpt('inj',true);$('inj').textContent=d.i.toFixed(2);}else showOpt('inj',false);
+    if(d.c>=0){showOpt('iac',true);$('iac').textContent=d.c.toFixed(1);}else showOpt('iac',false);
+    $('bar').style.width=Math.min(d.t/35*100,100)+'%';
+    $('tooth-val').textContent='Tand '+d.t+'.'+String(d.f).padStart(2,'0')+' / 35';
+    logRunning=d.la===1;
+    $('log-btn').textContent=logRunning?'⏹ Stop':'▶ Start';
+    $('log-btn').classList.toggle('on',logRunning);
+    $('log-info').textContent=d.lc+' linjer · '+fmtBytes(d.lb);
+    addPt(cd.r,d.r);addPt(cd.a,d.a);if(d.m>=0)addPt(cd.m,d.m);
+    redraw();
   };
 }
 
 // ── Log controls ─────────────────────────────────────────────────────────────
-function toggleLog() {
-  fetch(logRunning ? '/log/stop' : '/log/start', {method:'POST'});
-}
-function clearLog() {
-  const n = $('log-count').textContent.split('/')[0].trim();
-  if (n==='0' || confirm('Slet '+n+' entries?'))
-    fetch('/log/clear', {method:'POST'});
+function toggleLog(){fetch(logRunning?'/log/stop':'/log/start',{method:'POST'});}
+function clearLog(){
+  const n=$('log-info').textContent.split(' ')[0];
+  if(n==='0'||confirm('Slet '+n+' linjer fra flash?'))fetch('/log/clear',{method:'POST'});
 }
 
-// ── Calibration ───────────────────────────────────────────────────────────────
-async function doAutoCal() {
-  const r = await fetch('/cal', {method:'POST'});
-  const d = await r.json();
-  if (r.ok) {
-    $('cal-val').value = d.offset;
-    showMsg('cal-msg', '✓ Offset = '+d.offset+'°', true);
-  } else {
-    showMsg('cal-msg', '✗ '+d.error, false);
-  }
+// ── Calibration ──────────────────────────────────────────────────────────────
+async function doAutoCal(){
+  const r=await fetch('/cal',{method:'POST'});const d=await r.json();
+  if(r.ok){$('cal-val').value=d.offset;showMsg('cal-msg','✓ Offset = '+d.offset+'°',true);}
+  else showMsg('cal-msg','✗ '+d.error,false);
+}
+async function setOffset(){
+  const val=parseFloat($('cal-val').value);
+  if(isNaN(val)||val<1||val>359){showMsg('cal-msg','✗ Ugyldig (1–359)',false);return;}
+  const fd=new FormData();fd.append('offset',val);
+  const r=await fetch('/cal/set',{method:'POST',body:fd});const d=await r.json();
+  showMsg('cal-msg',r.ok?'✓ Offset = '+d.offset+'°':'✗ '+d.error,r.ok);
 }
 
-async function setOffset() {
-  const val = parseFloat($('cal-val').value);
-  if (isNaN(val) || val < 1 || val > 359) {
-    showMsg('cal-msg', '✗ Ugyldig værdi (1–359)', false); return;
-  }
-  const fd = new FormData(); fd.append('offset', val);
-  const r = await fetch('/cal/set', {method:'POST', body:fd});
-  const d = await r.json();
-  showMsg('cal-msg', r.ok ? '✓ Offset = '+d.offset+'°' : '✗ '+d.error, r.ok);
+// ── WiFi Station ─────────────────────────────────────────────────────────────
+async function saveWifi(){
+  const ssid=$('wifi-ssid').value.trim();
+  if(!ssid){showMsg('wifi-msg','✗ SSID mangler',false);return;}
+  if(!confirm('Forbind til "'+ssid+'"?\nESP32 genstarter.'))return;
+  const fd=new FormData();fd.append('ssid',ssid);fd.append('pass',$('wifi-pass').value);
+  await fetch('/wifi/config',{method:'POST',body:fd});
+}
+async function clearWifi(){
+  if(!confirm('Fjern WiFi-forbindelse?\nESP32 genstarter.'))return;
+  await fetch('/wifi/clear',{method:'POST'});
 }
 
-// Hent nuværende offset ved load
+// ── Startup: hent status + WiFi config ───────────────────────────────────────
 fetch('/status').then(r=>r.json()).then(d=>{
   $('cal-val').value = d.offset;
+  $('fs-info').textContent = 'Ledig: '+fmtBytes(d.fsFree)+' / '+fmtBytes(d.fsTotal);
+  if(d.staConnected)
+    $('wifi-title').textContent='WiFi: '+d.staIP;
+}).catch(()=>{});
+
+fetch('/wifi/config').then(r=>r.json()).then(d=>{
+  $('wifi-ssid').value = d.ssid||'';
+  $('wifi-clear').style.display = d.ssid?'':'none';
+  if(d.connected)
+    showMsg('wifi-msg','✓ Forbundet til '+d.ssid+' · IP: '+d.ip,true,0);
+  else if(d.ssid)
+    showMsg('wifi-msg','⚠ Konfigureret: '+d.ssid+', ikke forbundet endnu',false,0);
 }).catch(()=>{});
 
 connect();
