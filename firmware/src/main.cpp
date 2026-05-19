@@ -236,15 +236,20 @@ void setup()
     // ── Status ───────────────────────────────────────────────────────────────
     server.on("/status", HTTP_GET, [](AsyncWebServerRequest* req) {
         noInterrupts(); bool s = synced; interrupts();
-        char buf[256];
+        char buf[384];
         snprintf(buf, sizeof(buf),
             "{\"offset\":%.1f,\"synced\":%d,\"logActive\":%d,\"logBytes\":%d"
-            ",\"fsFree\":%u,\"fsTotal\":%u,\"staConnected\":%d,\"staIP\":\"%s\"}",
+            ",\"fsFree\":%u,\"fsTotal\":%u,\"staConnected\":%d,\"staIP\":\"%s\""
+            ",\"uptime\":%lu,\"freeHeap\":%u,\"apClients\":%d,\"rssi\":%d}",
             calibOffset, s?1:0, logActive?1:0, logBytes,
             (unsigned)(LittleFS.totalBytes()-LittleFS.usedBytes()),
             (unsigned)LittleFS.totalBytes(),
             staConnected?1:0,
-            staConnected ? WiFi.localIP().toString().c_str() : "");
+            staConnected ? WiFi.localIP().toString().c_str() : "",
+            millis()/1000UL,
+            (unsigned)ESP.getFreeHeap(),
+            (int)WiFi.softAPgetStationNum(),
+            staConnected ? WiFi.RSSI() : 0);
         req->send(200, "application/json", buf);
     });
 

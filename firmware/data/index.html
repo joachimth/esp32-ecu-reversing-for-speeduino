@@ -210,6 +210,21 @@ footer a:hover{color:#888}
   </div>
 </div>
 
+<!-- Diagnostik -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title">System diagnostik</span>
+    <button class="chev" id="chev-d" onclick="tog('db','chev-d')">▼</button>
+  </div>
+  <div id="db" style="display:none">
+    <div class="row"><span class="lbl" style="min-width:90px">Oppetid</span><span id="d-uptime">—</span></div>
+    <div class="row"><span class="lbl" style="min-width:90px">Fri heap</span><span id="d-heap">—</span></div>
+    <div class="row"><span class="lbl" style="min-width:90px">AP klienter</span><span id="d-clients">—</span></div>
+    <div class="row"><span class="lbl" style="min-width:90px">STA RSSI</span><span id="d-rssi">—</span></div>
+    <div class="row"><span class="lbl" style="min-width:90px">Flash ledig</span><span id="d-fs">—</span></div>
+  </div>
+</div>
+
 <footer style="margin-top:12px"><a href="/update">OTA firmware &#8594;</a></footer>
 
 <script>
@@ -351,12 +366,24 @@ async function clearWifi(){
 }
 
 // ── Startup: hent status + WiFi config ───────────────────────────────────────
-fetch('/status').then(r=>r.json()).then(d=>{
-  $('cal-val').value = d.offset;
-  $('fs-info').textContent = 'Ledig: '+fmtBytes(d.fsFree)+' / '+fmtBytes(d.fsTotal);
-  if(d.staConnected)
-    $('wifi-title').textContent='WiFi: '+d.staIP;
-}).catch(()=>{});
+function fmtUptime(s){
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=s%60;
+  return (h?h+'t ':'')+String(m).padStart(2,'0')+'m '+String(ss).padStart(2,'0')+'s';
+}
+function refreshStatus(){
+  fetch('/status').then(r=>r.json()).then(d=>{
+    $('cal-val').value = d.offset;
+    $('fs-info').textContent = 'Ledig: '+fmtBytes(d.fsFree)+' / '+fmtBytes(d.fsTotal);
+    if(d.staConnected) $('wifi-title').textContent='WiFi: '+d.staIP;
+    $('d-uptime').textContent  = fmtUptime(d.uptime||0);
+    $('d-heap').textContent    = fmtBytes(d.freeHeap||0);
+    $('d-clients').textContent = (d.apClients||0)+' forbundet';
+    $('d-rssi').textContent    = d.staConnected ? d.rssi+' dBm' : 'ikke forbundet';
+    $('d-fs').textContent      = fmtBytes(d.fsFree||0)+' / '+fmtBytes(d.fsTotal||0);
+  }).catch(()=>{});
+}
+refreshStatus();
+setInterval(refreshStatus, 10000);
 
 fetch('/wifi/config').then(r=>r.json()).then(d=>{
   $('wifi-ssid').value = d.ssid||'';
