@@ -71,10 +71,17 @@ static void computeValues(float& rpm, float& adv, float& dwell, int& tooth, floa
     sync        = synced;
     interrupts();
 
-    frac = (tp > 0) ? (float)dt / tp : 0.0f;
+    // No pulse for >3 tooth periods → engine stopped
+    if (tp == 0 || dt / tp > 3) {
+        frac = 0.0f; adv = 0.0f; rpm = 0.0f;
+        return;
+    }
+
+    frac = (float)dt / tp;
+    if (frac > 1.0f) frac = 1.0f;
     float raw = tooth * 10.0f + frac * 10.0f;
     adv  = calibOffset - raw;
-    rpm  = (tp > 0) ? (60000000.0f / (tp * 36.0f)) : 0.0f;
+    rpm  = 60000000.0f / (tp * 36.0f);
 }
 
 static void pushToClients()
