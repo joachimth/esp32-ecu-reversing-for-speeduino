@@ -104,14 +104,14 @@ static int readMapADC()
     for (int i=0; i<8; i++) s += analogRead(PIN_MAP);
     return (int)(s >> 3);
 }
-static float readMapKpa()
+static float adcToMapKpa(int adc)
 {
-    float vGpio   = readMapADC() * 3.3f / 4095.0f;
-    float vSensor = vGpio * 1.5f;  // 10k/20k divider compensation
+    float vSensor = adc * 3.3f / 4095.0f * 1.5f;
     float range   = mapVmax - mapVmin;
     if (range < 0.01f) return mapKpaMin;
     return mapKpaMin + (vSensor - mapVmin) / range * (mapKpaMax - mapKpaMin);
 }
+static float readMapKpa()    { return adcToMapKpa(readMapADC()); }
 static bool isMapConnected() { int r=readMapADC(); return r>300&&r<3800; }
 static bool isInjActive()    { return (micros()-lastInjUs)    < 2000000UL; }
 static bool isIacActive()    { return lastIacEdgeUs&&(micros()-lastIacEdgeUs)<2000000UL; }
@@ -161,9 +161,10 @@ static void logSample(float rpm, float adv, float dwell,
         Serial.println("LOG: FS fuldt – logning stoppet");
         return;
     }
-    float mapKpa = isMapConnected() ? readMapKpa() : -1.0f;
-    float injMsV = isInjActive()    ? injMs        : -1.0f;
-    float iacPct = isIacActive()    ? getIacDuty() : -1.0f;
+    int   mAdc   = readMapADC();
+    float mapKpa = (mAdc>300&&mAdc<3800) ? adcToMapKpa(mAdc) : -1.0f;
+    float injMsV = isInjActive() ? injMs        : -1.0f;
+    float iacPct = isIacActive() ? getIacDuty() : -1.0f;
 
     char mS[10]="", iS[10]="", cS[10]="";
     if (mapKpa>=0) snprintf(mS,sizeof(mS),"%.1f",mapKpa);
@@ -185,11 +186,13 @@ static void pushToClients()
 {
     float rpm, adv, dwell, frac; int tooth; bool sync;
     computeValues(rpm, adv, dwell, tooth, frac, sync);
-    float mapKpa  = isMapConnected() ? readMapKpa()    : -1.0f;
+    int   mapAdc  = readMapADC();
+    bool  mapOk   = (mapAdc > 300 && mapAdc < 3800);
+    float mapKpa  = mapOk ? adcToMapKpa(mapAdc) : -1.0f;
+    float mapV    = mapAdc * 3.3f / 4095.0f * 1.5f;
     float injMsV  = isInjActive()    ? injMs           : -1.0f;
     float iacPct  = isIacActive()    ? getIacDuty()    : -1.0f;
     float iacFreq = isIacActive()    ? getIacFreqHz()  :  0.0f;
-    float mapV    = readMapADC() * 3.3f / 4095.0f * 1.5f;
     char buf[256];
     noInterrupts(); uint32_t sc = syncCount; interrupts();
     snprintf(buf, sizeof(buf),
