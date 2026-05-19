@@ -189,6 +189,7 @@ static void pushToClients()
 void setup()
 {
     Serial.begin(115200);
+    Serial.println("RPM,ADV,DWELL,TOOTH,SYNC");
     pinMode(PIN_NE,  INPUT); pinMode(PIN_IGT, INPUT);
     pinMode(PIN_CAL, INPUT_PULLUP);
     pinMode(PIN_INJ, INPUT); pinMode(PIN_IAC, INPUT);

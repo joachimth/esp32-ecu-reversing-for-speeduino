@@ -20,6 +20,7 @@ h1{font-size:1.2rem;font-weight:700;color:#ff8c00}
 .card label{font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:#555;display:block;margin-bottom:6px}
 .val{font-size:2.4rem;font-weight:800;line-height:1;color:#ff8c00;font-variant-numeric:tabular-nums;transition:color .2s}
 .unit{font-size:.67rem;color:#333;margin-top:4px}
+.stats{font-size:.62rem;color:#2a4060;margin-top:3px;font-variant-numeric:tabular-nums}
 .sync .val{color:#555}.sync .val.ok{color:#4caf50}.sync .val.nok{color:#f44336}
 .opt{display:none}.opt.on{display:block}
 /* sections */
@@ -70,20 +71,23 @@ footer a:hover{color:#888}
 
 <header>
   <h1>Ignition Logger</h1>
-  <div class="conn"><span id="status">Forbinder...</span><span id="dot"></span></div>
+  <div class="conn">
+    <button class="btn btn-s" style="font-size:.68rem;padding:3px 8px" onclick="resetStats()" title="Nulstil min/max">↺</button>
+    <span id="status">Forbinder...</span><span id="dot"></span>
+  </div>
 </header>
 
 <div class="grid">
-  <div class="card"><label>RPM</label><div class="val" id="rpm">—</div><div class="unit">omdrejninger/min</div></div>
-  <div class="card"><label>Advance</label><div class="val" id="adv">—</div><div class="unit">° BTDC</div></div>
-  <div class="card"><label>Dwell</label><div class="val" id="dwell">—</div><div class="unit">ms</div></div>
+  <div class="card"><label>RPM</label><div class="val" id="rpm">—</div><div class="unit">omdrejninger/min</div><div class="stats" id="st-rpm"></div></div>
+  <div class="card"><label>Advance</label><div class="val" id="adv">—</div><div class="unit">° BTDC</div><div class="stats" id="st-adv"></div></div>
+  <div class="card"><label>Dwell</label><div class="val" id="dwell">—</div><div class="unit">ms</div><div class="stats" id="st-dwell"></div></div>
   <div class="card sync"><label>Sync</label><div class="val" id="sync">—</div><div class="unit">missing tooth lock</div></div>
 </div>
 
 <div class="grid" id="opt-grid" style="display:none">
-  <div class="card opt" id="map-card"><label id="card-lbl-map">MAP</label><div class="val" id="map">—</div><div class="unit">kPa · GPIO34</div></div>
-  <div class="card opt" id="inj-card"><label id="card-lbl-inj">Injektor</label><div class="val" id="inj">—</div><div class="unit">ms · GPIO35</div></div>
-  <div class="card opt" id="iac-card"><label id="card-lbl-iac">IAC</label><div class="val" id="iac">—</div><div class="unit" id="iac-unit">% · GPIO32</div></div>
+  <div class="card opt" id="map-card"><label id="card-lbl-map">MAP</label><div class="val" id="map">—</div><div class="unit">kPa · GPIO34</div><div class="stats" id="st-map"></div></div>
+  <div class="card opt" id="inj-card"><label id="card-lbl-inj">Injektor</label><div class="val" id="inj">—</div><div class="unit">ms · GPIO35</div><div class="stats" id="st-inj"></div></div>
+  <div class="card opt" id="iac-card"><label id="card-lbl-iac">IAC</label><div class="val" id="iac">—</div><div class="unit" id="iac-unit">% · GPIO32</div><div class="stats" id="st-iac"></div></div>
 </div>
 
 <div class="section">
@@ -258,6 +262,22 @@ footer a:hover{color:#888}
 const $ = id => document.getElementById(id);
 let ws, retryT, logRunning = false, isSynced = false;
 
+// ── Min/Max stats ─────────────────────────────────────────────────────────────
+const MM = {};
+function mmUpdate(key, v) {
+  if (v==null||isNaN(v)||v<0) return;
+  if (!MM[key]||v<MM[key][0]) MM[key]=[v,MM[key]?MM[key][1]:v];
+  if (v>MM[key][1]) MM[key][1]=v;
+}
+function mmShow(id, key, dec) {
+  if (!MM[key]) return;
+  $(id).textContent='↓'+MM[key][0].toFixed(dec)+'  ↑'+MM[key][1].toFixed(dec);
+}
+function resetStats() {
+  for (const k in MM) delete MM[k];
+  ['st-rpm','st-adv','st-dwell','st-map','st-inj','st-iac'].forEach(id=>$(id)&&($(id).textContent=''));
+}
+
 function setConn(ok) {
   $('status').textContent = ok ? 'Forbundet' : 'Afbrudt...';
   $('dot').className = ok ? 'ok' : 'err';
@@ -339,6 +359,12 @@ function connect(){
     $('log-btn').textContent=logRunning?'⏹ Stop':'▶ Start';
     $('log-btn').classList.toggle('on',logRunning);
     $('log-info').textContent=d.lc+' linjer · '+fmtBytes(d.lb);
+    if(d.r>0){mmUpdate('rpm',d.r);mmShow('st-rpm','rpm',0);}
+    mmUpdate('adv',d.a);mmShow('st-adv','adv',1);
+    if(d.d>0){mmUpdate('dwell',d.d);mmShow('st-dwell','dwell',2);}
+    if(d.m>=0){mmUpdate('map',d.m);mmShow('st-map','map',1);}
+    if(d.i>=0){mmUpdate('inj',d.i);mmShow('st-inj','inj',2);}
+    if(d.c>=0){mmUpdate('iac',d.c);mmShow('st-iac','iac',1);}
     addPt(cd.r,d.r);addPt(cd.a,d.a);if(d.m>=0)addPt(cd.m,d.m);
     redraw();
   };
