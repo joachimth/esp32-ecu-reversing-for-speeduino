@@ -145,6 +145,42 @@ footer a:hover{color:#888}
   </div>
 </div>
 
+<!-- MAP sensor konfiguration -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title">MAP sensor konfiguration</span>
+    <button class="chev" id="chev-m" onclick="tog('mcb','chev-m')">▼</button>
+  </div>
+  <div id="mcb" style="display:none">
+    <div class="row">
+      <span class="lbl">Forudindstilling:</span>
+      <button class="btn btn-s" onclick="setPreset(0.5,4.5,10,105)">Bosch 1-bar</button>
+      <button class="btn btn-s" onclick="setPreset(0.5,4.5,20,250)">Bosch 2.5-bar</button>
+      <button class="btn btn-s" onclick="setPreset(0.5,4.5,10,300)">GM 3-bar</button>
+      <button class="btn btn-s" onclick="setPreset(0.2,4.8,15,115)">MPX4115</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <span class="lbl">Vmin (V)</span>
+      <input type="number" id="map-vmin" step="0.01" min="0" max="5" value="0.50" style="width:72px">
+      <span class="lbl">→</span>
+      <input type="number" id="map-kmin" step="1" min="0" max="400" value="10" style="width:72px">
+      <span class="lbl">kPa</span>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <span class="lbl">Vmax (V)</span>
+      <input type="number" id="map-vmax" step="0.01" min="0" max="5" value="4.50" style="width:72px">
+      <span class="lbl">→</span>
+      <input type="number" id="map-kmax" step="1" min="0" max="400" value="105" style="width:72px">
+      <span class="lbl">kPa</span>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-o" onclick="saveMapCfg()">Gem skalering</button>
+      <span class="msg" id="map-cfg-msg"></span>
+    </div>
+    <p class="hint">Sensor-spænding efter 10k/20k spændingsdeler. Vmin/Vmax = faktisk sensor-udgang (×1.5 for GPIO-spænding).</p>
+  </div>
+</div>
+
 <!-- WiFi Station -->
 <div class="section" style="margin-top:10px">
   <div class="sec-head">
@@ -276,6 +312,21 @@ async function setOffset(){
   showMsg('cal-msg',r.ok?'✓ Offset = '+d.offset+'°':'✗ '+d.error,r.ok);
 }
 
+// ── MAP sensor config ─────────────────────────────────────────────────────────
+function setPreset(vmin, vmax, kmin, kmax) {
+  $('map-vmin').value=vmin.toFixed(2);$('map-vmax').value=vmax.toFixed(2);
+  $('map-kmin').value=kmin;$('map-kmax').value=kmax;
+}
+async function saveMapCfg() {
+  const fd=new FormData();
+  fd.append('mapVmin',  parseFloat($('map-vmin').value));
+  fd.append('mapVmax',  parseFloat($('map-vmax').value));
+  fd.append('mapKpaMin',parseFloat($('map-kmin').value));
+  fd.append('mapKpaMax',parseFloat($('map-kmax').value));
+  const r=await fetch('/config',{method:'POST',body:fd});const d=await r.json();
+  showMsg('map-cfg-msg',r.ok?'✓ Gemt: '+d.mapKpaMin+'–'+d.mapKpaMax+' kPa':'✗ Fejl',r.ok);
+}
+
 // ── WiFi Station ─────────────────────────────────────────────────────────────
 async function saveWifi(){
   const ssid=$('wifi-ssid').value.trim();
@@ -304,6 +355,11 @@ fetch('/wifi/config').then(r=>r.json()).then(d=>{
     showMsg('wifi-msg','✓ Forbundet til '+d.ssid+' · IP: '+d.ip,true,0);
   else if(d.ssid)
     showMsg('wifi-msg','⚠ Konfigureret: '+d.ssid+', ikke forbundet endnu',false,0);
+}).catch(()=>{});
+
+fetch('/config').then(r=>r.json()).then(d=>{
+  $('map-vmin').value=d.mapVmin.toFixed(2);$('map-vmax').value=d.mapVmax.toFixed(2);
+  $('map-kmin').value=d.mapKpaMin.toFixed(0);$('map-kmax').value=d.mapKpaMax.toFixed(0);
 }).catch(()=>{});
 
 connect();

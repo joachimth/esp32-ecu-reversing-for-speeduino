@@ -41,6 +41,12 @@ String staSSID      = "";
 String staPass      = "";
 bool   staConnected = false;
 
+// MAP sensor scaling (sensor voltage → kPa; divider compensated inside readMapKpa)
+float mapVmin   = 0.5f;    // sensor V at min pressure
+float mapVmax   = 4.5f;    // sensor V at max pressure
+float mapKpaMin = 10.0f;   // kPa at Vmin
+float mapKpaMax = 105.0f;  // kPa at Vmax
+
 Preferences    prefs;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
@@ -87,8 +93,11 @@ void IRAM_ATTR iacISR()
 // ─── Sensor helpers ──────────────────────────────────────────────────────────
 static float readMapKpa()
 {
-    float vGpio = analogRead(PIN_MAP) * 3.3f / 4095.0f;
-    return (vGpio * 1.5f - 0.5f) * 23.75f + 10.0f;
+    float vGpio   = analogRead(PIN_MAP) * 3.3f / 4095.0f;
+    float vSensor = vGpio * 1.5f;  // 10k/20k divider compensation
+    float range   = mapVmax - mapVmin;
+    if (range < 0.01f) return mapKpaMin;
+    return mapKpaMin + (vSensor - mapVmin) / range * (mapKpaMax - mapKpaMin);
 }
 static bool isMapConnected() { int r=analogRead(PIN_MAP); return r>300&&r<3800; }
 static bool isInjActive()    { return (micros()-lastInjUs)    < 2000000UL; }
@@ -181,9 +190,13 @@ void setup()
     attachInterrupt(digitalPinToInterrupt(PIN_IAC), iacISR,   CHANGE);
 
     prefs.begin("ign", false);
-    calibOffset = prefs.getFloat("offset", 215.0f);
+    calibOffset = prefs.getFloat("offset",    215.0f);
     staSSID     = prefs.getString("sta_ssid", "");
     staPass     = prefs.getString("sta_pass", "");
+    mapVmin     = prefs.getFloat("map_vmin",   0.5f);
+    mapVmax     = prefs.getFloat("map_vmax",   4.5f);
+    mapKpaMin   = prefs.getFloat("map_kmin",  10.0f);
+    mapKpaMax   = prefs.getFloat("map_kmax", 105.0f);
 
     LittleFS.begin(true);
 
@@ -277,6 +290,34 @@ void setup()
         prefs.remove("sta_ssid"); prefs.remove("sta_pass");
         req->send(200, "application/json", "{\"ok\":true}");
         delay(500); ESP.restart();
+    });
+
+    // ── Sensor config ────────────────────────────────────────────────────────
+    server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
+        char buf[128];
+        snprintf(buf, sizeof(buf),
+            "{\"mapVmin\":%.2f,\"mapVmax\":%.2f,\"mapKpaMin\":%.1f,\"mapKpaMax\":%.1f}",
+            mapVmin, mapVmax, mapKpaMin, mapKpaMax);
+        req->send(200, "application/json", buf);
+    });
+    server.on("/config", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (req->hasParam("mapVmin",  true)) mapVmin   = req->getParam("mapVmin",  true)->value().toFloat();
+        if (req->hasParam("mapVmax",  true)) mapVmax   = req->getParam("mapVmax",  true)->value().toFloat();
+        if (req->hasParam("mapKpaMin",true)) mapKpaMin = req->getParam("mapKpaMin",true)->value().toFloat();
+        if (req->hasParam("mapKpaMax",true)) mapKpaMax = req->getParam("mapKpaMax",true)->value().toFloat();
+        mapVmin   = constrain(mapVmin,   0.0f, 5.0f);
+        mapVmax   = constrain(mapVmax,   0.0f, 5.0f);
+        mapKpaMin = constrain(mapKpaMin, 0.0f, 400.0f);
+        mapKpaMax = constrain(mapKpaMax, 0.0f, 400.0f);
+        prefs.putFloat("map_vmin", mapVmin);
+        prefs.putFloat("map_vmax", mapVmax);
+        prefs.putFloat("map_kmin", mapKpaMin);
+        prefs.putFloat("map_kmax", mapKpaMax);
+        char buf[128];
+        snprintf(buf, sizeof(buf),
+            "{\"mapVmin\":%.2f,\"mapVmax\":%.2f,\"mapKpaMin\":%.1f,\"mapKpaMax\":%.1f}",
+            mapVmin, mapVmax, mapKpaMin, mapKpaMax);
+        req->send(200, "application/json", buf);
     });
 
     // ── OTA ──────────────────────────────────────────────────────────────────

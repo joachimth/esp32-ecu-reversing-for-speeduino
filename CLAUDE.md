@@ -53,10 +53,20 @@ rawAngle   = tooth * 10 + (dt / toothPeriod) * 10
 advance    = calibOffset - rawAngle        [° BTDC]
 rpm        = 60_000_000 / (toothPeriodUs * 36)
 dwell      = (igtFall_us - igtRise_us) / 1000   [ms]
-map_kPa    = (v_sensor - 0.5) * 23.75 + 10      [kPa, Bosch 1-bar]
+vGpio      = analogRead(PIN_MAP) * 3.3 / 4095
+vSensor    = vGpio * 1.5                         [10k/20k divider kompensation]
+map_kPa    = mapKpaMin + (vSensor - mapVmin) / (mapVmax - mapVmin) * (mapKpaMax - mapKpaMin)
 inj_ms     = (injRise_us - injFall_us) / 1000    [ms]
 iac_pct    = iacHighUs / iacPeriodUs * 100       [%]
 ```
+
+MAP sensor standard-presets:
+| Navn         | Vmin  | Vmax  | kPa min | kPa max |
+|--------------|-------|-------|---------|---------|
+| Bosch 1-bar  | 0.50V | 4.50V | 10 kPa  | 105 kPa |
+| Bosch 2.5-bar| 0.50V | 4.50V | 20 kPa  | 250 kPa |
+| GM 3-bar     | 0.50V | 4.50V | 10 kPa  | 300 kPa |
+| MPX4115      | 0.20V | 4.80V | 15 kPa  | 115 kPa |
 
 Tand-tæller nulstilles ved missing-tooth: dt > lastPeriod × 1.7.
 Frac clampes til [0, 1] og nulstilles hvis motoren er stoppet (dt > period × 3).
@@ -103,6 +113,8 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 | `/wifi/config`    | GET      | `{ssid, connected, ip}` for STA-tilstand                            |
 | `/wifi/config`    | POST     | Sæt STA credentials (form: `ssid=…&pass=…`) → gemmer i NVS         |
 | `/wifi/clear`     | POST     | Ryd STA credentials og nulstil til AP-only                          |
+| `/config`         | GET      | `{mapVmin, mapVmax, mapKpaMin, mapKpaMax}` MAP skalering            |
+| `/config`         | POST     | Sæt MAP skalering (form: `mapVmin=…&mapVmax=…&mapKpaMin=…&mapKpaMax=…`) → gemt i NVS |
 | `/log/start`      | POST     | Start LittleFS-logning (append til /ignlog.csv)                     |
 | `/log/stop`       | POST     | Stop logning                                                        |
 | `/log/clear`      | POST     | Slet /ignlog.csv og nulstil tæller                                  |
@@ -211,8 +223,8 @@ Web flasher er live på:
 - [x] Kalibrerings-knap i web UI + manuel offset-input (GET /status, POST /cal, POST /cal/set)
 - [x] LittleFS-baseret logging (append til /ignlog.csv, overlever genstart, auto-stop ved fuld FS)
 - [x] WiFi Station mode – forbind til eksisterende WiFi (AP+STA dual mode, NVS-gemt)
-- [ ] Konfigurationspanel: MAP-skalering, sensor-labels
-- [ ] MAP-sensor konfiguration (custom kPa/V kurve)
+- [x] MAP-sensor konfiguration (custom kPa/V kurve, 4 presets + manuel, NVS-gemt)
+- [ ] Konfigurationspanel: sensor-labels
 - [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
 - [ ] Knock sensor (analog, spektralanalyse på ADC)
 
