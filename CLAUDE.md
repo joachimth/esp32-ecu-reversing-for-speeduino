@@ -93,6 +93,9 @@ DNS-server omdirigerer alle forespørgsler til 192.168.4.1.
 |-------------------|----------|---------------------------------------------|
 | `/`               | GET      | Live dashboard (LittleFS)                   |
 | `/ws`             | WS       | WebSocket → JSON @ 5 Hz                     |
+| `/status`         | GET      | Returnerer `{offset, synced}` som JSON      |
+| `/cal`            | POST     | Auto-kalibrering (kræver sync) → `{offset}` |
+| `/cal/set`        | POST     | Manuel offset (form: `offset=215`) → `{offset}` |
 | `/log/start`      | POST     | Start rå datalogning                        |
 | `/log/stop`       | POST     | Stop datalogning                            |
 | `/log/clear`      | POST     | Ryd log-buffer                              |
@@ -194,9 +197,10 @@ Web flasher er live på:
 ## TODO / Roadmap
 
 ### v1.x – Forbedringer af eksisterende
-- [ ] Live grafer i web UI (RPM, ADV over tid) via Chart.js
+- [x] Live grafer i web UI (RPM, ADV, MAP over 60 sek – ren Canvas, ingen biblioteker)
+- [x] Kalibrerings-knap i web UI + manuel offset-input (GET /status, POST /cal, POST /cal/set)
 - [ ] LittleFS-baseret logging (ubegrænset varighed, gemmes på flash)
-- [ ] Konfigurationspanel i web UI (calibOffset, MAP-skalering, sensor-labels)
+- [ ] Konfigurationspanel: MAP-skalering, sensor-labels
 - [ ] WiFi Station mode – forbind til eksisterende WiFi i stedet for AP
 - [ ] MAP-sensor konfiguration (custom kPa/V kurve)
 - [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
