@@ -53,10 +53,20 @@ rawAngle   = tooth * 10 + (dt / toothPeriod) * 10
 advance    = calibOffset - rawAngle        [° BTDC]
 rpm        = 60_000_000 / (toothPeriodUs * 36)
 dwell      = (igtFall_us - igtRise_us) / 1000   [ms]
-map_kPa    = (v_sensor - 0.5) * 23.75 + 10      [kPa, Bosch 1-bar]
+vGpio      = analogRead(PIN_MAP) * 3.3 / 4095
+vSensor    = vGpio * 1.5                         [10k/20k divider kompensation]
+map_kPa    = mapKpaMin + (vSensor - mapVmin) / (mapVmax - mapVmin) * (mapKpaMax - mapKpaMin)
 inj_ms     = (injRise_us - injFall_us) / 1000    [ms]
 iac_pct    = iacHighUs / iacPeriodUs * 100       [%]
 ```
+
+MAP sensor standard-presets:
+| Navn         | Vmin  | Vmax  | kPa min | kPa max |
+|--------------|-------|-------|---------|---------|
+| Bosch 1-bar  | 0.50V | 4.50V | 10 kPa  | 105 kPa |
+| Bosch 2.5-bar| 0.50V | 4.50V | 20 kPa  | 250 kPa |
+| GM 3-bar     | 0.50V | 4.50V | 10 kPa  | 300 kPa |
+| MPX4115      | 0.20V | 4.80V | 15 kPa  | 115 kPa |
 
 Tand-tæller nulstilles ved missing-tooth: dt > lastPeriod × 1.7.
 Frac clampes til [0, 1] og nulstilles hvis motoren er stoppet (dt > period × 3).
@@ -76,50 +86,65 @@ RPM,ADV,DWELL,TOOTH,SYNC
 - **TOOTH** = `toothCount.frac×100` (f.eks. 20.51 = tand 20, 51% inde i perioden)
 - **SYNC** = 1 når missing tooth er fundet, 0 ellers
 
-## WiFi (Access Point + Captive Portal)
-| Parameter | Værdi                     |
-|-----------|---------------------------|
-| SSID      | IgnLogger                 |
-| Password  | ignition1                 |
-| IP        | 192.168.4.1               |
-| Dashboard | http://192.168.4.1        |
-| OTA       | http://192.168.4.1/update |
+## WiFi (Access Point + Station + Captive Portal)
+| Parameter    | Værdi                     |
+|--------------|---------------------------|
+| AP SSID      | IgnLogger                 |
+| AP Password  | ignition1                 |
+| AP IP        | 192.168.4.1               |
+| Dashboard    | http://192.168.4.1        |
+| OTA          | http://192.168.4.1/update |
 
-Ved tilslutning til WiFi vises captive portal automatisk på iPhone, Android og Windows.
+Ved tilslutning til AP vises captive portal automatisk på iPhone, Android og Windows.
 DNS-server omdirigerer alle forespørgsler til 192.168.4.1.
 
+**WiFi Station mode** (valgfri): SSID+adgangskode gemmes i NVS (nøgler `sta_ssid`, `sta_pass`).
+ESP32 kører WIFI_AP_STA – AP er altid aktiv, STA forbinder til eksisterende netværk.
+Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
+
 ## Web Endpoints
-| URL               | Metode   | Funktion                                    |
-|-------------------|----------|---------------------------------------------|
-| `/`               | GET      | Live dashboard (LittleFS)                   |
-| `/ws`             | WS       | WebSocket → JSON @ 5 Hz                     |
-| `/status`         | GET      | Returnerer `{offset, synced}` som JSON      |
-| `/cal`            | POST     | Auto-kalibrering (kræver sync) → `{offset}` |
-| `/cal/set`        | POST     | Manuel offset (form: `offset=215`) → `{offset}` |
-| `/log/start`      | POST     | Start rå datalogning                        |
-| `/log/stop`       | POST     | Stop datalogning                            |
-| `/log/clear`      | POST     | Ryd log-buffer                              |
-| `/log.csv`        | GET      | Download log som CSV-fil                    |
-| `/update`         | GET      | OTA upload formular                         |
-| `/update`         | POST     | Modtager firmware.bin, flasher + genstarter |
+| URL               | Metode   | Funktion                                                            |
+|-------------------|----------|---------------------------------------------------------------------|
+| `/`               | GET      | Live dashboard (LittleFS)                                           |
+| `/ws`             | WS       | WebSocket → JSON @ 5 Hz                                             |
+| `/status`         | GET      | `{offset, synced, logActive, logBytes, fsFree, fsTotal, staConnected, staIP, uptime, freeHeap, apClients, rssi}` |
+| `/cal`            | POST     | Auto-kalibrering (kræver sync) → `{offset}`                         |
+| `/cal/set`        | POST     | Manuel offset (form: `offset=215`) → `{offset}`                     |
+| `/wifi/config`    | GET      | `{ssid, connected, ip}` for STA-tilstand                            |
+| `/wifi/config`    | POST     | Sæt STA credentials (form: `ssid=…&pass=…`) → gemmer i NVS         |
+| `/wifi/clear`     | POST     | Ryd STA credentials og nulstil til AP-only                          |
+| `/config`         | GET      | `{mapVmin, mapVmax, mapKpaMin, mapKpaMax}` MAP skalering            |
+| `/config`         | POST     | Sæt MAP skalering (form: `mapVmin=…&mapVmax=…&mapKpaMin=…&mapKpaMax=…`) → gemt i NVS |
+| `/labels`         | GET      | `{map, inj, iac}` sensor-navne                                      |
+| `/labels`         | POST     | Sæt sensor-navne (form: `map=…&inj=…&iac=…`) → gemt i NVS          |
+| `/log/start`      | POST     | Start LittleFS-logning (append til /ignlog.csv)                     |
+| `/log/stop`       | POST     | Stop logning                                                        |
+| `/log/clear`      | POST     | Slet /ignlog.csv og nulstil tæller                                  |
+| `/log.csv`        | GET      | Download /ignlog.csv direkte fra LittleFS                           |
+| `/update`         | GET      | OTA upload formular                                                 |
+| `/update`         | POST     | Modtager firmware.bin, flasher + genstarter                         |
 
 ## WebSocket JSON-format
 ```json
-{"r":875,"a":10.2,"d":3.14,"t":20,"f":51,"s":1,"m":98.5,"i":2.30,"c":45.0,"lc":150,"la":1}
+{"r":875,"a":10.2,"d":3.14,"t":20,"f":51,"s":1,"sc":120,"m":98.5,"mv":1.234,"i":2.30,"c":45.0,"cf":14.2,"lc":150,"la":1,"lb":30720}
 ```
-| Felt | Beskrivelse                         | -1 = ikke tilgængelig |
-|------|-------------------------------------|-----------------------|
-| r    | RPM                                 | —                     |
-| a    | Advance °BTDC                       | —                     |
-| d    | Dwell ms                            | —                     |
-| t    | Tand (0–35)                         | —                     |
-| f    | Fraktion × 100                      | —                     |
-| s    | Sync (0/1)                          | —                     |
-| m    | MAP kPa                             | -1                    |
-| i    | Injektor ms                         | -1                    |
-| c    | IAC duty %                          | -1                    |
-| lc   | Log-entries i buffer                | —                     |
-| la   | Log aktiv (0/1)                     | —                     |
+| Felt | Beskrivelse                                    | -1 = ikke tilgængelig |
+|------|------------------------------------------------|-----------------------|
+| r    | RPM                                            | —                     |
+| a    | Advance °BTDC                                  | —                     |
+| d    | Dwell ms                                       | —                     |
+| t    | Tand (0–35)                                    | —                     |
+| f    | Fraktion × 100                                 | —                     |
+| s    | Sync (0/1)                                     | —                     |
+| sc   | Sync-tæller (missing-tooth events siden boot)  | —                     |
+| m    | MAP kPa (beregnet via konfigureret kurve)      | -1                    |
+| mv   | MAP sensor-spænding i V (GPIO × 1.5 divider)   | —                     |
+| i    | Injektor ms                                    | -1                    |
+| c    | IAC duty %                                     | -1                    |
+| cf   | IAC frekvens Hz                                | 0 = ikke aktiv        |
+| lc   | Log-linjer gemt i /ignlog.csv                  | —                     |
+| la   | Log aktiv (0/1)                                | —                     |
+| lb   | Log fil størrelse i bytes                      | —                     |
 
 ## CSV log-format
 ```
@@ -127,7 +152,13 @@ timestamp_ms,rpm,adv_btdc,dwell_ms,tooth,frac,sync,map_kpa,inj_ms,iac_pct
 0,875,10.2,3.14,20,51,1,98.5,2.30,45.0
 200,880,10.3,3.14,20,48,1,,2.31,
 ```
-Tomme felter = sensor ikke tilsluttet. Buffer: 1500 entries ≈ 5 minutter ved 5 Hz.
+Tomme felter = sensor ikke tilsluttet.
+**Logfil**: `/ignlog.csv` i LittleFS. Append-mode, overlever genstart. Auto-stop når <1 KB fri.
+Flush-interval: hver 5. write. Hentes via GET `/log.csv`. Slettes via POST `/log/clear`.
+Første linje i ny fil er metadata-kommentar:
+```
+# OEM Ignition Logger | offset=215.0 | MAP Bosch=0.50V–4.50V 10–105kPa
+```
 
 ## Biblioteker
 ```
@@ -199,12 +230,18 @@ Web flasher er live på:
 ### v1.x – Forbedringer af eksisterende
 - [x] Live grafer i web UI (RPM, ADV, MAP over 60 sek – ren Canvas, ingen biblioteker)
 - [x] Kalibrerings-knap i web UI + manuel offset-input (GET /status, POST /cal, POST /cal/set)
-- [ ] LittleFS-baseret logging (ubegrænset varighed, gemmes på flash)
-- [ ] Konfigurationspanel: MAP-skalering, sensor-labels
-- [ ] WiFi Station mode – forbind til eksisterende WiFi i stedet for AP
-- [ ] MAP-sensor konfiguration (custom kPa/V kurve)
+- [x] LittleFS-baseret logging (append til /ignlog.csv, overlever genstart, auto-stop ved fuld FS)
+- [x] WiFi Station mode – forbind til eksisterende WiFi (AP+STA dual mode, NVS-gemt)
+- [x] MAP-sensor konfiguration (custom kPa/V kurve, 4 presets + manuel, NVS-gemt, live V-visning)
+- [x] Konfigurationspanel: sensor-labels (brugerdefinerede navne for MAP/INJ/IAC, NVS-gemt)
+- [x] IAC frekvens-visning (Hz ved siden af duty %, hjælper identifikation af solenoid vs stepper)
+- [x] Session min/max tracking på alle gauge-kort (reset-knap i header)
+- [x] System diagnostik-panel (oppetid, fri heap, AP klienter, STA RSSI, flash-plads) @ 10s
+- [x] MAP ADC 8× oversampling (reducerer ESP32 ADC-støj med ~3×)
+- [x] Sync-tæller (sc) i WebSocket – viser missing-tooth events siden boot i tooth-sektionen
+- [x] CSV metadata-kommentar i logfil-header (offset + MAP skalering)
 - [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
-- [ ] Knock sensor (analog, spektralanalyse på ADC)
+- [ ] Knock sensor (analog, spektralanalyse på ADC – GPIO33 reserved)
 
 ### v2 – OLED standalone display
 - [ ] SSD1306 128x64 OLED via I2C (GPIO21=SDA, GPIO22=SCL)
