@@ -101,8 +101,8 @@ void IRAM_ATTR crankISR()
 {
     uint32_t now = micros(), dt = now - lastToothUs;
     if (toothPeriodUs > 0) {
-        if (dt > toothPeriodUs * 1.7f) { toothCount = 0; synced = true; syncCount++; }
-        else if (++toothCount >= 36)    toothCount = 0;
+        if (dt > toothPeriodUs * 1.7f) { toothCount = 0; synced = true; syncCount = syncCount + 1; }
+        else { int tc = toothCount + 1; toothCount = (tc >= 36) ? 0 : tc; }
     }
     toothPeriodUs = dt; lastToothUs = now;
 }
@@ -365,7 +365,7 @@ void setup()
     // ESP32-C5 defaults to WIFI_BAND_MODE_AUTO (2.4 + 5 GHz dual-band).
     // The older esp_wifi_get_protocol() API used internally does not work in
     // AUTO band mode, causing a crash loop. Force 2.4 GHz only before init.
-    esp_wifi_set_band_mode(WIFI_BAND_MODE_2G);
+    esp_wifi_set_band_mode(WIFI_BAND_MODE_2G_ONLY);
     WiFi.mode(staSSID.length() > 0 ? WIFI_AP_STA : WIFI_AP);
     WiFi.softAP(AP_SSID, AP_PASS);
     dnsServer.start(53, "*", WiFi.softAPIP());
