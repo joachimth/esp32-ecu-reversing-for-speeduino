@@ -65,6 +65,15 @@ RPM,ADV,DWELL,TOOTH,SYNC
 
 Det er muligt at forhåndsvise og screenshot-e dashboardet uden hardware via simulatoren i `sim/`:
 
+<p align="center">
+  <img src="sim/screenshot_top.png" width="48%" alt="Dashboard top – RPM, Advance, Dwell, MAP, Injektor, IAC">
+  <img src="sim/screenshot_mobile.png" width="28%" alt="Dashboard mobil">
+</p>
+
+<p align="center">
+  <img src="sim/screenshot_bottom.png" width="48%" alt="Dashboard bund – grafer og scatter">
+</p>
+
 ```bash
 # Åbn direkte i browser
 open sim/index.html
