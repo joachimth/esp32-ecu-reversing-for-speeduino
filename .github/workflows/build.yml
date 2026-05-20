@@ -36,18 +36,18 @@ jobs:
         run: pip install --upgrade platformio
 
       - name: Build firmware
-        run: cd firmware && pio run -e esp32dev
+        run: cd firmware && pio run -e esp32c5
 
       - name: Build LittleFS image
-        run: cd firmware && pio run -e esp32dev -t buildfs
+        run: cd firmware && pio run -e esp32c5 -t buildfs
 
       - name: Gather binaries
         run: |
           mkdir -p release
-          cp firmware/.pio/build/esp32dev/firmware.bin   release/
-          cp firmware/.pio/build/esp32dev/partitions.bin release/
-          cp firmware/.pio/build/esp32dev/bootloader.bin release/
-          cp firmware/.pio/build/esp32dev/littlefs.bin   release/
+          cp firmware/.pio/build/esp32c5/firmware.bin   release/
+          cp firmware/.pio/build/esp32c5/partitions.bin release/
+          cp firmware/.pio/build/esp32c5/bootloader.bin release/
+          cp firmware/.pio/build/esp32c5/littlefs.bin   release/
           BOOT_APP=$(find ~/.platformio -name "boot_app0.bin" 2>/dev/null | head -1)
           if [ -z "$BOOT_APP" ]; then echo "ERROR: boot_app0.bin not found" && exit 1; fi
           cp "$BOOT_APP" release/boot_app0.bin
