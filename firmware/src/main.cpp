@@ -42,6 +42,9 @@ String staSSID      = "";
 String staPass      = "";
 bool   staConnected = false;
 
+// 5V input divider: R1=10k, R2=18k → Vout = Vin × 18/28 → compensate with 28/18
+static constexpr float MAP_DIV_COMP = 28.0f / 18.0f;  // ≈ 1.5556
+
 // MAP sensor scaling (sensor voltage → kPa; divider compensated inside readMapKpa)
 float mapVmin   = 0.5f;    // sensor V at min pressure
 float mapVmax   = 4.5f;    // sensor V at max pressure
@@ -106,7 +109,7 @@ static int readMapADC()
 }
 static float adcToMapKpa(int adc)
 {
-    float vSensor = adc * 3.3f / 4095.0f * 1.5f;
+    float vSensor = adc * 3.3f / 4095.0f * MAP_DIV_COMP;
     float range   = mapVmax - mapVmin;
     if (range < 0.01f) return mapKpaMin;
     return mapKpaMin + (vSensor - mapVmin) / range * (mapKpaMax - mapKpaMin);
@@ -189,7 +192,7 @@ static void pushToClients()
     int   mapAdc  = readMapADC();
     bool  mapOk   = (mapAdc > 300 && mapAdc < 3800);
     float mapKpa  = mapOk ? adcToMapKpa(mapAdc) : -1.0f;
-    float mapV    = mapAdc * 3.3f / 4095.0f * 1.5f;
+    float mapV    = mapAdc * 3.3f / 4095.0f * MAP_DIV_COMP;
     float injMsV  = isInjActive()    ? injMs           : -1.0f;
     float iacPct  = isIacActive()    ? getIacDuty()    : -1.0f;
     float iacFreq = isIacActive()    ? getIacFreqHz()  :  0.0f;
