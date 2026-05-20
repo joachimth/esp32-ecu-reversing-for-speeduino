@@ -15,6 +15,9 @@ Reverse engineer Toyota 4E-FE OEM ECU via signalanalyse på NE (crank) og IGT (i
 | GPIO34 | MAP sensor     | ADC       | 10k/18k deler (5V)    | Valgfri, auto-detekteret |
 | GPIO35 | Fuel injektor  | Digital   | 33k/10k deler (12V)   | Valgfri, auto-detekteret |
 | GPIO32 | IAC ventil PWM | Digital   | 33k/10k deler (12V)   | Valgfri, auto-detekteret |
+| GPIO33 | Knock sensor   | ADC       | 33k/10k deler (12V)   | Valgfri, altid samplet   |
+| GPIO21 | OLED SDA       | I2C       | Ingen                  | Valgfri, auto-detekteret |
+| GPIO22 | OLED SCL       | I2C       | Ingen                  | Valgfri, auto-detekteret |
 
 ### Spændingsdelere
 ```
@@ -37,6 +40,8 @@ IGT / INJ / IAC (12V): SIG ---[33k]---+--- GPIO
 - **MAP**: Analog tryk-sensor. 0.5V=10kPa, 4.5V=105kPa (Bosch 1-bar approx).
 - **INJ**: Fuel injector puls. Falling = start, Rising = slut. Pulsbredde = indsprøjtningsvarighed.
 - **IAC**: PWM signal fra ECU. Duty cycle = ventil-åbning %.
+- **Knock**: Analog resonanssignal (knock sensor). 64 ADC-læsninger → peak-to-peak amplitude 0–100%.
+- **OLED**: SSD1306 128×64 display. Auto-detekteret via I2C scan på adresse 0x3C ved boot.
 
 ## Auto-detektion af valgfrie sensorer
 | Sensor | Betingelse for "aktiv" |
@@ -44,6 +49,8 @@ IGT / INJ / IAC (12V): SIG ---[33k]---+--- GPIO
 | MAP    | ADC-værdi i [300, 3800] (0.24V – 3.06V) |
 | INJ    | Puls registreret inden for 2 sekunder |
 | IAC    | Puls registreret inden for 2 sekunder |
+| Knock  | Altid samplet; niveau vises som 0–100% amplitude |
+| OLED   | I2C scan 0x3C ved boot; display aktivt hvis fundet |
 
 Web-dashboardet viser kun sensor-kort når data er validt. Skjules automatisk ved frakobling.
 
@@ -58,6 +65,7 @@ vSensor    = vGpio * 1.556                        [10k/18k divider kompensation:
 map_kPa    = mapKpaMin + (vSensor - mapVmin) / (mapVmax - mapVmin) * (mapKpaMax - mapKpaMin)
 inj_ms     = (injRise_us - injFall_us) / 1000    [ms]
 iac_pct    = iacHighUs / iacPeriodUs * 100       [%]
+knock_pct  = (adcMax - adcMin) * 100 / 4095      [0–100%, 64 samples]
 ```
 
 MAP sensor standard-presets:
@@ -117,6 +125,8 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 | `/config`         | POST     | Sæt MAP skalering (form: `mapVmin=…&mapVmax=…&mapKpaMin=…&mapKpaMax=…`) → gemt i NVS |
 | `/labels`         | GET      | `{map, inj, iac}` sensor-navne                                      |
 | `/labels`         | POST     | Sæt sensor-navne (form: `map=…&inj=…&iac=…`) → gemt i NVS          |
+| `/knock`          | GET      | `{level, count, threshold}` knock sensor status                     |
+| `/knock`          | POST     | Sæt tærskel (`threshold=30`) og/eller nulstil tæller (`reset=1`)    |
 | `/log/start`      | POST     | Start LittleFS-logning (append til /ignlog.csv)                     |
 | `/log/stop`       | POST     | Stop logning                                                        |
 | `/log/clear`      | POST     | Slet /ignlog.csv og nulstil tæller                                  |
@@ -126,7 +136,7 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 
 ## WebSocket JSON-format
 ```json
-{"r":875,"a":10.2,"d":3.14,"t":20,"f":51,"s":1,"sc":120,"m":98.5,"mv":1.234,"i":2.30,"c":45.0,"cf":14.2,"lc":150,"la":1,"lb":30720}
+{"r":875,"a":10.2,"d":3.14,"t":20,"f":51,"s":1,"sc":120,"m":98.5,"mv":1.234,"i":2.30,"c":45.0,"cf":14.2,"k":12,"kc":3,"kt":30,"lc":150,"la":1,"lb":30720}
 ```
 | Felt | Beskrivelse                                    | -1 = ikke tilgængelig |
 |------|------------------------------------------------|-----------------------|
@@ -138,10 +148,13 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 | s    | Sync (0/1)                                     | —                     |
 | sc   | Sync-tæller (missing-tooth events siden boot)  | —                     |
 | m    | MAP kPa (beregnet via konfigureret kurve)      | -1                    |
-| mv   | MAP sensor-spænding i V (GPIO × 1.556 divider)  | —                     |
+| mv   | MAP sensor-spænding i V (GPIO × 1.556 divider) | —                     |
 | i    | Injektor ms                                    | -1                    |
 | c    | IAC duty %                                     | -1                    |
 | cf   | IAC frekvens Hz                                | 0 = ikke aktiv        |
+| k    | Knock amplitude 0–100% (peak-to-peak, 64 samp)| —                     |
+| kc   | Knock-tæller (events over tærskel siden boot)  | —                     |
+| kt   | Knock tærskel %                                | —                     |
 | lc   | Log-linjer gemt i /ignlog.csv                  | —                     |
 | la   | Log aktiv (0/1)                                | —                     |
 | lb   | Log fil størrelse i bytes                      | —                     |
@@ -164,6 +177,7 @@ Første linje i ny fil er metadata-kommentar:
 ```
 esphome/ESPAsyncWebServer-esphome @ ^3.3.0
 esphome/AsyncTCP-esphome @ ^2.1.0
+olikraus/U8g2 @ ^2.35.30
 ```
 Esphome-forks bruges frem for me-no-dev da de er aktivt vedligeholdt og kompatible med
 nyere ESP-IDF. OTA via Arduino `Update`-biblioteket (del af framework). DNS via `DNSServer`
@@ -246,18 +260,21 @@ Web flasher er live på:
 - [x] Dwell i grader (°) beregnet fra dwell_ms × RPM, vist i dwell-kort)
 - [x] Skærmvågen via Wake Lock API (forhindrer telefon i at slukke under monitorering)
 - [x] Konfigurerbar kalibreringsvinkel (POST /cal angle=X, default 10° BTDC)
+- [x] Knock sensor (GPIO33, peak-to-peak amplitude 64 ADC-reads, tærskel NVS-gemt, dashboard bar)
+- [x] OLED SSD1306 128×64 (GPIO21/22 I2C, auto-detekteret, RPM/ADV/DWL/MAP/INJ/IAC + tand-bar)
 - [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
-- [ ] Knock sensor (analog, spektralanalyse på ADC – GPIO33 reserved)
 
 ### v2 – OLED standalone display
-- [ ] SSD1306 128x64 OLED via I2C (GPIO21=SDA, GPIO22=SCL)
-- [ ] Live gauge ved bilen uden PC/telefon:
+- [x] SSD1306 128x64 OLED via I2C (GPIO21=SDA, GPIO22=SCL) – auto-detekteret ved boot
+- [x] Live gauge ved bilen uden PC/telefon:
   ```
   RPM: 875   ADV: 10.1°
   DWL: 3.0ms SYNC OK
   MAP: 98kPa INJ: 2.3ms
+  [===========] T20
   ```
-- [ ] Roterende tand-visning eller advance bar-gauge
+- [x] Tand-bar (0–360° position vist som horisontal bar nederst)
+- [x] Knock indikator (lille bar øverst til højre når level > 5%)
 - [ ] Kalibrerings-menu på knap
 
 ### v3 – Speeduino integration

@@ -5,14 +5,19 @@
 #include <LittleFS.h>
 #include <Update.h>
 #include <DNSServer.h>
+#include <Wire.h>
+#include <U8g2lib.h>
 
 // ─── Pins ────────────────────────────────────────────────────────────────────
-#define PIN_NE   25
-#define PIN_IGT  26
-#define PIN_CAL  0
-#define PIN_MAP  34
-#define PIN_INJ  35
-#define PIN_IAC  32
+#define PIN_NE    25
+#define PIN_IGT   26
+#define PIN_CAL   0
+#define PIN_MAP   34
+#define PIN_INJ   35
+#define PIN_IAC   32
+#define PIN_KNOCK 33   // knock sensor (ADC, optional)
+#define PIN_SDA   21   // OLED I2C data  (optional)
+#define PIN_SCL   22   // OLED I2C clock (optional)
 
 const char* AP_SSID = "IgnLogger";
 const char* AP_PASS = "ignition1";
@@ -60,6 +65,15 @@ Preferences    prefs;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 DNSServer      dnsServer;
+
+// ─── OLED (SSD1306 128×64, auto-detected via I2C scan) ───────────────────────
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, PIN_SCL, PIN_SDA);
+bool oledOk = false;
+
+// ─── Knock sensor (GPIO33, always sampled; peak-to-peak amplitude) ────────────
+static uint8_t  knockLevel = 0;    // 0–100 % peak-to-peak of last window
+static uint32_t knockCount = 0;    // knock events above threshold since boot
+static uint8_t  knockThresh = 30;  // threshold % (NVS-stored)
 
 // ─── LittleFS logging ────────────────────────────────────────────────────────
 File        logFile;
@@ -120,6 +134,76 @@ static bool isInjActive()    { return (micros()-lastInjUs)    < 2000000UL; }
 static bool isIacActive()    { return lastIacEdgeUs&&(micros()-lastIacEdgeUs)<2000000UL; }
 static float getIacDuty()    { return iacPeriodUs>0 ? iacHighUs/iacPeriodUs*100.0f : -1.0f; }
 static float getIacFreqHz()  { return iacPeriodUs>0 ? 1000000.0f/iacPeriodUs : 0.0f; }
+
+// ─── Knock sensor ─────────────────────────────────────────────────────────────
+static void sampleKnock()
+{
+    // 64 raw reads → peak-to-peak amplitude as 0-100 %
+    // analogRead on ESP32 ≈ 15-25 µs → total ≈ 1-1.6 ms
+    int mn = 4095, mx = 0;
+    for (int i = 0; i < 64; i++) {
+        int r = analogRead(PIN_KNOCK);
+        if (r < mn) mn = r;
+        if (r > mx) mx = r;
+    }
+    knockLevel = (uint8_t)constrain((mx - mn) * 100 / 4095, 0, 100);
+    if (knockLevel > knockThresh) knockCount++;
+}
+
+// ─── OLED display ─────────────────────────────────────────────────────────────
+static void updateOled(float rpm, float adv, float dwell,
+                        int tooth, float frac, bool sync,
+                        float mapKpa, float injMsV, float iacPct)
+{
+    if (!oledOk) return;
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_6x10_tf);
+    char L[22];
+
+    if (!sync && rpm < 10.0f) {
+        u8g2.drawStr(22, 24, "NO SIGNAL");
+        u8g2.setFont(u8g2_font_5x7_tf);
+        u8g2.drawStr(10, 38, "Connect NE + IGT");
+    } else if (!sync) {
+        snprintf(L, sizeof(L), "RPM:%-5.0f  SYNC:--", rpm);
+        u8g2.drawStr(0, 10, L);
+        u8g2.drawStr(16, 30, "Searching...");
+    } else {
+        // Row 1: RPM + SYNC
+        snprintf(L, sizeof(L), "RPM:%-5.0fSYNC:OK", rpm);
+        u8g2.drawStr(0, 10, L);
+        // Row 2: Advance + Dwell
+        snprintf(L, sizeof(L), "ADV:%-4.1f  DWL:%.1f", adv, dwell);
+        u8g2.drawStr(0, 22, L);
+        // Row 3: MAP (if present)
+        if (mapKpa >= 0) {
+            snprintf(L, sizeof(L), "MAP:%.1f kPa", mapKpa);
+            u8g2.drawStr(0, 34, L);
+        }
+        // Row 4: INJ + IAC (if present)
+        if (injMsV >= 0 || iacPct >= 0) {
+            char i2[10]="", c2[8]="";
+            if (injMsV >= 0) snprintf(i2, sizeof(i2), "INJ:%.2f", injMsV);
+            if (iacPct >= 0) snprintf(c2, sizeof(c2), "IAC:%.0f%%", iacPct);
+            snprintf(L, sizeof(L), "%-10s%s", i2, c2);
+            u8g2.drawStr(0, 46, L);
+        }
+        // Tooth bar
+        int bw = constrain((int)((tooth * 10.0f + frac * 10.0f) / 360.0f * 126.0f), 0, 126);
+        u8g2.drawFrame(0, 55, 128, 9);
+        u8g2.drawBox(1, 56, bw, 7);
+        u8g2.setFont(u8g2_font_5x7_tf);
+        snprintf(L, sizeof(L), "T%d", tooth);
+        u8g2.drawStr(115, 63, L);
+        // Knock indicator (small bar top-right if active)
+        if (knockLevel > 5) {
+            int kw = constrain(knockLevel * 30 / 100, 0, 30);
+            u8g2.drawFrame(98, 0, 30, 5);
+            u8g2.drawBox(99, 1, kw, 3);
+        }
+    }
+    u8g2.sendBuffer();
+}
 
 // ─── Core computation ────────────────────────────────────────────────────────
 static void computeValues(float& rpm, float& adv, float& dwell,
@@ -196,13 +280,17 @@ static void pushToClients()
     float injMsV  = isInjActive()    ? injMs           : -1.0f;
     float iacPct  = isIacActive()    ? getIacDuty()    : -1.0f;
     float iacFreq = isIacActive()    ? getIacFreqHz()  :  0.0f;
-    char buf[256];
+    char buf[300];
     noInterrupts(); uint32_t sc = syncCount; interrupts();
     snprintf(buf, sizeof(buf),
         "{\"r\":%.0f,\"a\":%.1f,\"d\":%.2f,\"t\":%d,\"f\":%d,\"s\":%d,\"sc\":%lu"
-        ",\"m\":%.1f,\"mv\":%.3f,\"i\":%.2f,\"c\":%.1f,\"cf\":%.1f,\"lc\":%d,\"la\":%d,\"lb\":%d}",
+        ",\"m\":%.1f,\"mv\":%.3f,\"i\":%.2f,\"c\":%.1f,\"cf\":%.1f"
+        ",\"k\":%d,\"kc\":%lu,\"kt\":%d"
+        ",\"lc\":%d,\"la\":%d,\"lb\":%d}",
         rpm, adv, dwell, tooth, (int)(frac*100), sync?1:0, (unsigned long)sc,
-        mapKpa, mapV, injMsV, iacPct, iacFreq, logCount, logActive?1:0, logBytes);
+        mapKpa, mapV, injMsV, iacPct, iacFreq,
+        (int)knockLevel, (unsigned long)knockCount, (int)knockThresh,
+        logCount, logActive?1:0, logBytes);
     ws.textAll(buf);
 }
 
@@ -230,6 +318,23 @@ void setup()
     lblMap      = prefs.getString("lbl_map", "MAP");
     lblInj      = prefs.getString("lbl_inj", "Injektor");
     lblIac      = prefs.getString("lbl_iac", "IAC");
+    knockThresh = (uint8_t)prefs.getUInt("knock_thr", 30);
+
+    // OLED auto-detect (SSD1306 at 0x3C)
+    Wire.begin(PIN_SDA, PIN_SCL);
+    Wire.beginTransmission(0x3C);
+    if (Wire.endTransmission() == 0) {
+        oledOk = u8g2.begin();
+        if (oledOk) {
+            u8g2.clearBuffer();
+            u8g2.setFont(u8g2_font_6x10_tf);
+            u8g2.drawStr(12, 32, "IgnLogger v1");
+            u8g2.sendBuffer();
+        }
+        Serial.println("OLED: funnet");
+    } else {
+        Serial.println("OLED: ikke funnet (GPIO21/22)");
+    }
 
     LittleFS.begin(true);
 
@@ -434,6 +539,28 @@ void setup()
                 "timestamp_ms,rpm,adv_btdc,dwell_ms,tooth,frac,sync,map_kpa,inj_ms,iac_pct\n");
     });
 
+    // ── Knock sensor ─────────────────────────────────────────────────────────
+    server.on("/knock", HTTP_GET, [](AsyncWebServerRequest* req) {
+        char buf[80];
+        snprintf(buf, sizeof(buf),
+            "{\"level\":%d,\"count\":%lu,\"threshold\":%d}",
+            (int)knockLevel, (unsigned long)knockCount, (int)knockThresh);
+        req->send(200, "application/json", buf);
+    });
+    server.on("/knock", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (req->hasParam("threshold", true)) {
+            int t = req->getParam("threshold", true)->value().toInt();
+            knockThresh = (uint8_t)constrain(t, 1, 99);
+            prefs.putUInt("knock_thr", knockThresh);
+        }
+        if (req->hasParam("reset", true)) knockCount = 0;
+        char buf[80];
+        snprintf(buf, sizeof(buf),
+            "{\"level\":%d,\"count\":%lu,\"threshold\":%d}",
+            (int)knockLevel, (unsigned long)knockCount, (int)knockThresh);
+        req->send(200, "application/json", buf);
+    });
+
     // ── Static files (after all specific handlers) ────────────────────────────
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
@@ -466,9 +593,15 @@ void loop()
         lastPrint = now;
         float rpm, adv, dwell, frac; int tooth; bool sync;
         computeValues(rpm, adv, dwell, tooth, frac, sync);
+        sampleKnock();
         Serial.printf("%.0f,%.1f,%.2f,%d.%02d,%d\n",
                       rpm,adv,dwell,tooth,(int)(frac*100),sync?1:0);
         logSample(rpm, adv, dwell, tooth, frac, sync);
+        int   oAdc    = readMapADC();
+        float oMapKpa = (oAdc > 300 && oAdc < 3800) ? adcToMapKpa(oAdc) : -1.0f;
+        float oInj    = isInjActive() ? injMs        : -1.0f;
+        float oIac    = isIacActive() ? getIacDuty() : -1.0f;
+        updateOled(rpm, adv, dwell, tooth, frac, sync, oMapKpa, oInj, oIac);
     }
 
     if (now - lastWs >= 200) {

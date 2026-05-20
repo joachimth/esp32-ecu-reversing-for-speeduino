@@ -82,6 +82,19 @@ footer a:hover{color:#888}
   <div class="card"><label>Advance</label><div class="val" id="adv">—</div><div class="unit">° BTDC</div><div class="stats" id="st-adv"></div></div>
   <div class="card"><label>Dwell</label><div class="val" id="dwell">—</div><div class="unit">ms · <span id="dwell-deg" style="color:#555">—°</span></div><div class="stats" id="st-dwell"></div></div>
   <div class="card sync"><label>Sync</label><div class="val" id="sync">—</div><div class="unit">missing tooth lock</div></div>
+  <div class="card" id="knock-card" style="grid-column:1/-1">
+    <label>Knock sensor · GPIO33</label>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="val" id="knock-val" style="font-size:1.8rem;min-width:52px">0%</div>
+      <div style="flex:1">
+        <div class="bar-bg"><div class="bar" id="knock-bar" style="width:0%"></div></div>
+        <div class="bar-lbl" style="display:flex;justify-content:space-between;margin-top:3px">
+          <span style="color:#333;font-size:.62rem">tærskel: <span id="knock-thr-disp">30</span>%</span>
+          <span style="color:#333;font-size:.62rem">detektioner: <span id="knock-kc">0</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="grid" id="opt-grid" style="display:none">
@@ -241,7 +254,7 @@ footer a:hover{color:#888}
       <button class="btn btn-o" onclick="saveMapCfg()">Gem skalering</button>
       <span class="msg" id="map-cfg-msg"></span>
     </div>
-    <p class="hint">Sensor-spænding efter 10k/20k spændingsdeler (=faktisk sensor V). "Brug aktuel" fanger den live målte spænding.</p>
+    <p class="hint">Sensor-spænding efter 10k/18k spændingsdeler (=faktisk sensor V). "Brug aktuel" fanger den live målte spænding.</p>
   </div>
 </div>
 
@@ -264,6 +277,25 @@ footer a:hover{color:#888}
       <button class="btn btn-s" id="wifi-clear" style="display:none" onclick="clearWifi()">Fjern forbindelse</button>
     </div>
     <p class="hint">ESP32 genstarter ved ændring. AP (192.168.4.1) er altid tilgængeligt.</p>
+  </div>
+</div>
+
+<!-- Knock sensor konfiguration -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title">Knock sensor · konfiguration</span>
+    <button class="chev" id="chev-kn" onclick="tog('knb','chev-kn')">▼</button>
+  </div>
+  <div id="knb" style="display:none">
+    <div class="row">
+      <span class="lbl">Tærskel</span>
+      <input type="number" id="knock-thr" min="1" max="99" value="30" style="width:72px">
+      <span class="lbl">%</span>
+      <button class="btn btn-s" onclick="saveKnockThr()">Gem</button>
+      <button class="btn btn-s" onclick="resetKnockCount()">Nulstil tæller</button>
+      <span class="msg" id="knock-msg"></span>
+    </div>
+    <p class="hint">Peak-to-peak amplitude over 64 ADC-læsninger @ 5 Hz. Bar rød = over tærskel. 33k/10k spændingsdeler (12V indgang).</p>
   </div>
 </div>
 
@@ -484,6 +516,15 @@ function connect(){
     if(d.m>=0){mmUpdate('map',d.m);mmShow('st-map','map',1);}
     if(d.i>=0){mmUpdate('inj',d.i);mmShow('st-inj','inj',2);}
     if(d.c>=0){mmUpdate('iac',d.c);mmShow('st-iac','iac',1);}
+    if(d.k!==undefined){
+      $('knock-val').textContent=d.k+'%';
+      const exc=d.k>d.kt;
+      $('knock-bar').style.width=Math.min(d.k,100)+'%';
+      $('knock-bar').style.background=exc?'#f44336':'linear-gradient(90deg,#4caf50,#ffb347)';
+      $('knock-thr-disp').textContent=d.kt;
+      $('knock-kc').textContent=d.kc;
+      if($('knock-thr').dataset.user!=='1')$('knock-thr').value=d.kt;
+    }
     addPt(cd.r,d.r);addPt(cd.a,d.a);if(d.m>=0)addPt(cd.m,d.m);
     addScatter(d.r,d.a,d.s,d.m);
     redraw();
@@ -541,6 +582,21 @@ async function saveMapCfg() {
   const r=await fetch('/config',{method:'POST',body:fd});const d=await r.json();
   showMsg('map-cfg-msg',r.ok?'✓ Gemt: '+d.mapKpaMin+'–'+d.mapKpaMax+' kPa':'✗ Fejl',r.ok);
 }
+
+// ── Knock sensor ─────────────────────────────────────────────────────────────
+async function saveKnockThr(){
+  const t=parseInt($('knock-thr').value);
+  if(isNaN(t)||t<1||t>99){showMsg('knock-msg','✗ 1–99',false);return;}
+  const fd=new FormData();fd.append('threshold',t);
+  const r=await fetch('/knock',{method:'POST',body:fd});const d=await r.json();
+  showMsg('knock-msg',r.ok?'✓ Tærskel: '+d.threshold+'%':'✗ Fejl',r.ok);
+}
+async function resetKnockCount(){
+  const fd=new FormData();fd.append('reset','1');
+  await fetch('/knock',{method:'POST',body:fd});
+  showMsg('knock-msg','✓ Nulstillet',true);
+}
+$('knock-thr').addEventListener('input',()=>$('knock-thr').dataset.user='1');
 
 // ── WiFi Station ─────────────────────────────────────────────────────────────
 async function saveWifi(){
