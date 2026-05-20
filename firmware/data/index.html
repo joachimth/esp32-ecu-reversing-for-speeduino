@@ -102,13 +102,29 @@ footer a:hover{color:#888}
 <!-- Grafer -->
 <div class="section" style="margin-top:10px">
   <div class="sec-head">
-    <span class="sec-title">Grafer · 60 sek</span>
+    <span class="sec-title">Tidsgrafer · 60 sek</span>
     <button class="chev" id="chev-c" onclick="tog('cb','chev-c')">▲</button>
   </div>
   <div id="cb">
     <canvas id="cr"></canvas>
     <canvas id="ca"></canvas>
     <canvas id="cm" style="display:none"></canvas>
+  </div>
+</div>
+
+<!-- Advance vs RPM scatter -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title">Advance kurve · RPM vs °BTDC</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span class="lbl" id="scatter-pts" style="font-size:.6rem"></span>
+      <button class="chev" id="chev-sc" onclick="clearScatter()">✕</button>
+      <button class="chev" id="chev-sv" onclick="tog('scb','chev-sv')">▲</button>
+    </div>
+  </div>
+  <div id="scb">
+    <canvas id="scatter" style="height:130px"></canvas>
+    <p class="hint" style="margin-top:6px">Viser ECU'ens OEM tændingsmap. Samler datapunkter mens motoren kører. ✕ = ryd.</p>
   </div>
 </div>
 
@@ -297,8 +313,78 @@ function showMsg(id, txt, ok, ms=3000) {
 function tog(bodyId, chevId) {
   const b=$(bodyId),c=$(chevId),open=b.style.display!=='none';
   b.style.display=open?'none':''; c.textContent=open?'▼':'▲';
+  if(!open&&bodyId==='scb')setTimeout(drawScatter,50);
 }
 function fmtBytes(b) { return b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB'; }
+
+// ── Advance vs RPM scatter ────────────────────────────────────────────────────
+const SC_MAX=2000;
+const scData=[];  // {r:rpm, a:adv}
+function addScatter(rpm,adv,sync){
+  if(!sync||rpm<200||adv<-10||adv>60)return;
+  scData.push({r:rpm,a:adv});
+  if(scData.length>SC_MAX)scData.shift();
+}
+function clearScatter(){scData.length=0;drawScatter();}
+function drawScatter(){
+  const cv=$('scatter');
+  if(!cv||cv.style.display==='none')return;
+  const W=cv.clientWidth||540,H=130;
+  cv.width=W;cv.height=H;
+  const c=cv.getContext('2d');
+  const PL=34,PR=8,PT=8,PB=20;
+  const RMAX=7000,AMIN=-5,AMAX=50;
+  c.fillStyle='#111';c.fillRect(0,0,W,H);
+  // grid
+  c.strokeStyle='#1a1a1a';c.lineWidth=1;
+  for(let i=0;i<=7;i++){
+    const x=PL+(W-PL-PR)*i/7;
+    c.beginPath();c.moveTo(x,PT);c.lineTo(x,H-PB);c.stroke();
+    c.fillStyle='#2a2a2a';c.font='8px monospace';c.textAlign='center';
+    c.fillText((RMAX/7*i/1000).toFixed(0)+'k',x,H-PB+10);
+  }
+  for(let i=0;i<=5;i++){
+    const y=PT+(H-PT-PB)*i/5;
+    c.beginPath();c.moveTo(PL,y);c.lineTo(W-PR,y);c.stroke();
+    c.fillStyle='#2a2a2a';c.font='8px monospace';c.textAlign='right';
+    c.fillText((AMAX-(AMAX-AMIN)*i/5).toFixed(0),PL-2,y+3);
+  }
+  // axis labels
+  c.fillStyle='#333';c.font='9px sans-serif';
+  c.textAlign='center';c.fillText('RPM',W/2,H-1);
+  c.save();c.translate(8,H/2);c.rotate(-Math.PI/2);
+  c.fillText('°BTDC',0,0);c.restore();
+  // dots
+  if(scData.length<2){
+    c.fillStyle='#333';c.font='11px sans-serif';c.textAlign='center';
+    c.fillText('Venter på data…',W/2,H/2);return;
+  }
+  c.fillStyle='rgba(100,181,246,0.35)';
+  scData.forEach(p=>{
+    const x=PL+(W-PL-PR)*p.r/RMAX;
+    const y=PT+(H-PT-PB)*(1-(p.a-AMIN)/(AMAX-AMIN));
+    c.beginPath();c.arc(x,y,2.5,0,6.28);c.fill();
+  });
+  // trend: 500rpm bins → avg advance
+  const bins={};
+  scData.forEach(p=>{const b=Math.round(p.r/500)*500;if(!bins[b]){bins[b]={s:0,n:0};}bins[b].s+=p.a;bins[b].n++;});
+  const keys=Object.keys(bins).map(Number).sort((a,b)=>a-b);
+  if(keys.length>1){
+    c.strokeStyle='#ff8c00';c.lineWidth=2;c.beginPath();
+    keys.forEach((k,i)=>{
+      const x=PL+(W-PL-PR)*k/RMAX;
+      const y=PT+(H-PT-PB)*(1-(bins[k].s/bins[k].n-AMIN)/(AMAX-AMIN));
+      i?c.lineTo(x,y):c.moveTo(x,y);
+    });
+    c.stroke();
+  }
+  $('scatter-pts').textContent=scData.length+' pt';
+}
+let scLastDraw=0;
+function maybeDrawScatter(){
+  const now=Date.now();
+  if(now-scLastDraw>1000){scLastDraw=now;drawScatter();}
+}
 
 // ── Charts ─────────────────────────────────────────────────────────────────
 const cd={r:[],a:[],m:[]}, MAX=300;
@@ -370,7 +456,9 @@ function connect(){
     if(d.i>=0){mmUpdate('inj',d.i);mmShow('st-inj','inj',2);}
     if(d.c>=0){mmUpdate('iac',d.c);mmShow('st-iac','iac',1);}
     addPt(cd.r,d.r);addPt(cd.a,d.a);if(d.m>=0)addPt(cd.m,d.m);
+    addScatter(d.r,d.a,d.s);
     redraw();
+    maybeDrawScatter();
   };
 }
 
