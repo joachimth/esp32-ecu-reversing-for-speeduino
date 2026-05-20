@@ -7,17 +7,32 @@
 #include <DNSServer.h>
 #include <Wire.h>
 #include <U8g2lib.h>
+#include "esp_wifi.h"   // for esp_wifi_set_band_mode (ESP32-C5 dual-band fix)
 
-// ─── Pins ────────────────────────────────────────────────────────────────────
-#define PIN_NE    25
-#define PIN_IGT   26
-#define PIN_CAL   0
-#define PIN_MAP   34
-#define PIN_INJ   35
-#define PIN_IAC   32
-#define PIN_KNOCK 33   // knock sensor (ADC, optional)
-#define PIN_SDA   21   // OLED I2C data  (optional)
-#define PIN_SCL   22   // OLED I2C clock (optional)
+// ─── Pins (ESP32-C5-WROOM-1) ─────────────────────────────────────────────────
+// ADC1 pins (GPIO0-6) are reliable with WiFi active.
+// GPIO12-14 are used by SPI flash inside the module – do not use.
+// GPIO18/19 are USB D+/D-.
+//
+// HARDWARE REWIRING REQUIRED vs original ESP32 layout:
+//   NE    → GPIO6   (was GPIO25)  5V via 10k/18k divider
+//   IGT   → GPIO5   (was GPIO26)  12V via 33k/10k divider
+//   CAL   → GPIO10  (was GPIO0)
+//   MAP   → GPIO2   (was GPIO34)  5V via 10k/18k divider, ADC1_CH2
+//   INJ   → GPIO11  (was GPIO35)  12V via 33k/10k divider
+//   IAC   → GPIO23  (was GPIO32)  12V via 33k/10k divider
+//   KNOCK → GPIO3   (was GPIO33)  12V via 33k/10k divider, ADC1_CH3
+//   SDA   → GPIO21  (unchanged)
+//   SCL   → GPIO20  (was GPIO22)
+#define PIN_NE     6
+#define PIN_IGT    5
+#define PIN_CAL   10
+#define PIN_MAP    2   // ADC1_CH2
+#define PIN_INJ   11
+#define PIN_IAC   23
+#define PIN_KNOCK  3   // ADC1_CH3
+#define PIN_SDA   21
+#define PIN_SCL   20
 
 const char* AP_SSID = "IgnLogger";
 const char* AP_PASS = "ignition1";
@@ -347,6 +362,10 @@ void setup()
     }
 
     // WiFi – AP always on; STA if configured
+    // ESP32-C5 defaults to WIFI_BAND_MODE_AUTO (2.4 + 5 GHz dual-band).
+    // The older esp_wifi_get_protocol() API used internally does not work in
+    // AUTO band mode, causing a crash loop. Force 2.4 GHz only before init.
+    esp_wifi_set_band_mode(WIFI_BAND_MODE_2G);
     WiFi.mode(staSSID.length() > 0 ? WIFI_AP_STA : WIFI_AP);
     WiFi.softAP(AP_SSID, AP_PASS);
     dnsServer.start(53, "*", WiFi.softAPIP());
