@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ignition Logger – Simulation</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0d0d;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:14px}
+header{width:100%;max-width:580px;display:flex;justify-content:space-between;
+  align-items:center;margin-bottom:14px}
+h1{font-size:1.2rem;font-weight:700;color:#ff8c00}
+.conn{display:flex;align-items:center;gap:7px;font-size:.75rem;color:#555}
+#dot{width:9px;height:9px;border-radius:50%;background:#333;flex-shrink:0;transition:background .3s}
+#dot.ok{background:#4caf50;box-shadow:0 0 7px #4caf5055}
+#dot.err{background:#f44336}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:580px}
+.card{background:#161616;border:1px solid #222;border-radius:12px;padding:14px 12px;text-align:center}
+.card label{font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:#555;display:block;margin-bottom:6px}
+.val{font-size:2.4rem;font-weight:800;line-height:1;color:#ff8c00;font-variant-numeric:tabular-nums;transition:color .2s}
+.unit{font-size:.67rem;color:#333;margin-top:4px}
+.stats{font-size:.62rem;color:#2a4060;margin-top:3px;font-variant-numeric:tabular-nums}
+.sync .val{color:#555}.sync .val.ok{color:#4caf50}.sync .val.nok{color:#f44336}
+.opt{display:none}.opt.on{display:block}
+/* sections */
+.section{margin-top:10px;width:100%;max-width:580px;
+  background:#161616;border:1px solid #222;border-radius:12px;padding:14px 16px}
+.sec-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.sec-title{font-size:.65rem;text-transform:uppercase;letter-spacing:.12em;color:#555}
+/* bar */
+.bar-bg{height:8px;background:#1e1e1e;border-radius:4px;overflow:hidden}
+.bar{height:100%;width:0%;background:linear-gradient(90deg,#ff8c00,#ffb347);border-radius:4px;transition:width .15s}
+.bar-lbl{font-size:.72rem;color:#333;margin-top:5px;text-align:right}
+/* charts */
+canvas{display:block;width:100%;height:72px;background:#111;border-radius:6px}
+canvas+canvas{margin-top:6px}
+/* buttons */
+.btn{border:0;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:.8rem;
+  font-family:inherit;transition:background .15s;white-space:nowrap}
+.btn-g{background:#1a3a1a;color:#4caf50}.btn-g.on{background:#4caf50;color:#000}
+.btn-o{background:#3a2000;color:#ff8c00}.btn-o.ok{background:#ff8c00;color:#000}
+.btn-o:disabled{background:#222;color:#444;cursor:not-allowed}
+.btn-s{background:#1e1e1e;color:#888;border:1px solid #2a2a2a}
+.btn-s:hover{color:#bbb;background:#252525}
+.btn-dl{background:#0e2338;color:#64b5f6;border:1px solid #1a3a5a;
+  text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.btn-dl:hover{background:#1a3a5a}
+input[type=text],input[type=password],input[type=number]{
+  background:#111;border:1px solid #2a2a2a;border-radius:6px;
+  color:#e0e0e0;padding:6px 10px;font-size:.85rem;font-family:inherit}
+input:focus{outline:none;border-color:#ff8c00}
+input[type=number]{width:90px}
+input[type=text],input[type=password]{width:150px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row+.row{margin-top:8px}
+.msg{font-size:.75rem;padding:4px 10px;border-radius:6px;display:none}
+.msg.ok{display:inline-block;background:#1a3a1a;color:#4caf50}
+.msg.err{display:inline-block;background:#3a1010;color:#f44336}
+.chev{background:none;border:none;color:#444;cursor:pointer;font-size:.85rem;padding:0 4px}
+.chev:hover{color:#888}
+.hint{font-size:.67rem;color:#2a2a2a;margin-top:8px;line-height:1.5}
+.lbl{font-size:.72rem;color:#555}
+footer{margin-top:12px;font-size:.68rem;color:#2a2a2a}
+footer a{color:#444;text-decoration:none}
+footer a:hover{color:#888}
+/* simulation banner */
+.sim-banner{background:#1a2a1a;border:1px solid #2a4a2a;border-radius:8px;
+  padding:6px 14px;font-size:.72rem;color:#4caf50;margin-bottom:10px;
+  width:100%;max-width:580px;text-align:center}
+@media(max-width:360px){.val{font-size:1.9rem}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Ignition Logger</h1>
+  <div class="conn">
+    <button class="btn btn-s" style="font-size:.68rem;padding:3px 8px" onclick="resetStats()" title="Nulstil min/max">↺</button>
+    <span id="status">Forbinder...</span><span id="dot"></span>
+  </div>
+</header>
+
+<div class="sim-banner">⚡ SIMULERINGSTILSTAND – ingen ESP32 tilsluttet</div>
+
+<div class="grid">
+  <div class="card"><label>RPM</label><div class="val" id="rpm">—</div><div class="unit">omdrejninger/min</div><div class="stats" id="st-rpm"></div></div>
+  <div class="card"><label>Advance</label><div class="val" id="adv">—</div><div class="unit">° BTDC</div><div class="stats" id="st-adv"></div></div>
+  <div class="card"><label>Dwell</label><div class="val" id="dwell">—</div><div class="unit">ms · <span id="dwell-deg" style="color:#555">—°</span></div><div class="stats" id="st-dwell"></div></div>
+  <div class="card sync"><label>Sync</label><div class="val" id="sync">—</div><div class="unit">missing tooth lock</div></div>
+  <div class="card" id="knock-card" style="grid-column:1/-1">
+    <label>Knock sensor · GPIO33</label>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="val" id="knock-val" style="font-size:1.8rem;min-width:52px">0%</div>
+      <div style="flex:1">
+        <div class="bar-bg"><div class="bar" id="knock-bar" style="width:0%"></div></div>
+        <div class="bar-lbl" style="display:flex;justify-content:space-between;margin-top:3px">
+          <span style="color:#333;font-size:.62rem">tærskel: <span id="knock-thr-disp">30</span>%</span>
+          <span style="color:#333;font-size:.62rem">detektioner: <span id="knock-kc">0</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid" id="opt-grid" style="display:none">
+  <div class="card opt" id="map-card"><label id="card-lbl-map">MAP</label><div class="val" id="map">—</div><div class="unit">kPa · GPIO34</div><div class="stats" id="st-map"></div></div>
+  <div class="card opt" id="inj-card"><label id="card-lbl-inj">Injektor</label><div class="val" id="inj">—</div><div class="unit">ms · GPIO35</div><div class="stats" id="st-inj"></div></div>
+  <div class="card opt" id="iac-card"><label id="card-lbl-iac">IAC</label><div class="val" id="iac">—</div><div class="unit" id="iac-unit">% · GPIO32</div><div class="stats" id="st-iac"></div></div>
+</div>
+
+<div class="section">
+  <div class="sec-head">
+    <span class="sec-title">Tand position · 0–35</span>
+    <span class="lbl" id="sync-count" style="font-size:.65rem"></span>
+  </div>
+  <div class="bar-bg"><div class="bar" id="bar"></div></div>
+  <div class="bar-lbl" id="tooth-val">—</div>
+</div>
+
+<!-- Grafer -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title">Tidsgrafer · 60 sek</span>
+    <button class="chev" id="chev-c" onclick="tog('cb','chev-c')">▲</button>
+  </div>
+  <div id="cb">
+    <canvas id="cr"></canvas>
+    <canvas id="ca"></canvas>
+    <canvas id="cm" style="display:none"></canvas>
+  </div>
+</div>
+
+<!-- Advance / MAP vs RPM scatter -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title" id="scatter-title">Advance kurve · RPM vs °BTDC</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span class="lbl" id="scatter-pts" style="font-size:.6rem"></span>
+      <button class="btn btn-s" id="scatter-mode-btn" onclick="toggleScatterMode()" style="font-size:.65rem;padding:2px 7px;display:none">MAP</button>
+      <button class="chev" id="chev-sc" onclick="clearScatter()">✕</button>
+      <button class="chev" id="chev-sv" onclick="tog('scb','chev-sv')">▲</button>
+    </div>
+  </div>
+  <div id="scb">
+    <canvas id="scatter" style="height:130px"></canvas>
+    <div class="row" style="margin-top:8px">
+      <button class="btn btn-dl" onclick="exportScatter()" style="font-size:.75rem;padding:5px 10px">⬇ Eksport CSV</button>
+    </div>
+    <p class="hint" style="margin-top:6px">Orange linje = gennemsnit pr. 500 RPM. ✕ = ryd. Skift til MAP-visning med knappen.</p>
+  </div>
+</div>
+
+<!-- Logning -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title">Datalogning · LittleFS</span>
+    <button class="chev" id="chev-l" onclick="tog('lb','chev-l')">▲</button>
+  </div>
+  <div id="lb">
+    <div class="row">
+      <button class="btn btn-g" id="log-btn" onclick="toggleLog()">▶ Start</button>
+      <button class="btn btn-s" onclick="clearLog()">Ryd</button>
+      <a class="btn btn-dl" href="#" download="ignlog.csv">⬇ CSV</a>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <span class="lbl" id="log-info">0 linjer · 0 KB</span>
+      <span class="lbl" id="fs-info" style="margin-left:8px"></span>
+    </div>
+    <p class="hint">Data gemmes på flash og overlever genstart. Maks. ~3000 linjer (≈10 min @ 5 Hz).</p>
+  </div>
+</div>
+
+<!-- Kalibrering -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title">Kalibrering</span>
+    <button class="chev" id="chev-k" onclick="tog('kb','chev-k')">▲</button>
+  </div>
+  <div id="kb">
+    <div class="row">
+      <button class="btn btn-o" id="cal-btn" onclick="doAutoCal()" disabled>⊙ Kalibrér nu</button>
+      <span class="lbl">ved</span>
+      <input type="number" id="cal-angle" min="-10" max="60" step="0.5" value="10" style="width:58px">
+      <span class="lbl">° BTDC</span>
+      <span class="msg" id="cal-msg"></span>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <span class="lbl">Manuel offset</span>
+      <input type="number" id="cal-val" min="1" max="359" step="1" value="215">
+      <button class="btn btn-s" onclick="setOffset()">Gem</button>
+    </div>
+    <p class="hint">Kalibrér ved et kendt advance. Standard: idle = 10° BTDC (Toyota 4E-FE).</p>
+  </div>
+</div>
+
+<!-- Sensor labels -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title">Sensor navne</span>
+    <button class="chev" id="chev-n" onclick="tog('nb','chev-n')">▼</button>
+  </div>
+  <div id="nb" style="display:none">
+    <div class="row">
+      <span class="lbl" style="min-width:60px">MAP</span>
+      <input type="text" id="lbl-map" value="MAP" style="width:130px">
+    </div>
+    <div class="row" style="margin-top:6px">
+      <span class="lbl" style="min-width:60px">INJ</span>
+      <input type="text" id="lbl-inj" value="Injektor" style="width:130px">
+    </div>
+    <div class="row" style="margin-top:6px">
+      <span class="lbl" style="min-width:60px">IAC</span>
+      <input type="text" id="lbl-iac" value="IAC" style="width:130px">
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-o" onclick="saveLabels()">Gem navne</button>
+      <span class="msg" id="lbl-msg"></span>
+    </div>
+    <p class="hint">Navnene vises på sensor-kortene ovenfor.</p>
+  </div>
+</div>
+
+<!-- MAP sensor konfiguration -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title">MAP sensor konfiguration</span>
+    <button class="chev" id="chev-m" onclick="tog('mcb','chev-m')">▼</button>
+  </div>
+  <div id="mcb" style="display:none">
+    <div class="row" style="margin-bottom:8px">
+      <span class="lbl">Aktuel sensor-V:</span>
+      <span class="val" id="map-v-live" style="font-size:1.1rem;color:#64b5f6">—</span>
+      <span class="lbl">V</span>
+    </div>
+    <div class="row">
+      <span class="lbl">Forudindstilling:</span>
+      <button class="btn btn-s" onclick="setPreset(0.5,4.5,10,105)">Bosch 1-bar</button>
+      <button class="btn btn-s" onclick="setPreset(0.5,4.5,20,250)">Bosch 2.5-bar</button>
+      <button class="btn btn-s" onclick="setPreset(0.5,4.5,10,300)">GM 3-bar</button>
+      <button class="btn btn-s" onclick="setPreset(0.2,4.8,15,115)">MPX4115</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <span class="lbl">Vmin (V)</span>
+      <input type="number" id="map-vmin" step="0.01" min="0" max="5" value="0.50" style="width:72px">
+      <button class="btn btn-s" style="font-size:.7rem;padding:4px 8px" onclick="useCurrentV('map-vmin')">Brug aktuel</button>
+      <span class="lbl">→</span>
+      <input type="number" id="map-kmin" step="1" min="0" max="400" value="10" style="width:72px">
+      <span class="lbl">kPa</span>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <span class="lbl">Vmax (V)</span>
+      <input type="number" id="map-vmax" step="0.01" min="0" max="5" value="4.50" style="width:72px">
+      <button class="btn btn-s" style="font-size:.7rem;padding:4px 8px" onclick="useCurrentV('map-vmax')">Brug aktuel</button>
+      <span class="lbl">→</span>
+      <input type="number" id="map-kmax" step="1" min="0" max="400" value="105" style="width:72px">
+      <span class="lbl">kPa</span>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-o" onclick="saveMapCfg()">Gem skalering</button>
+      <span class="msg" id="map-cfg-msg"></span>
+    </div>
+    <p class="hint">Sensor-spænding efter 10k/18k spændingsdeler (=faktisk sensor V). "Brug aktuel" fanger den live målte spænding.</p>
+  </div>
+</div>
+
+<!-- WiFi Station -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title" id="wifi-title">WiFi Station</span>
+    <button class="chev" id="chev-w" onclick="tog('wb','chev-w')">▼</button>
+  </div>
+  <div id="wb" style="display:none">
+    <div class="row" style="margin-bottom:8px">
+      <span class="msg" id="wifi-msg"></span>
+    </div>
+    <div class="row">
+      <input type="text" id="wifi-ssid" placeholder="Netværksnavn (SSID)">
+      <input type="password" id="wifi-pass" placeholder="Password">
+      <button class="btn btn-s" onclick="saveWifi()">Forbind</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn btn-s" id="wifi-clear" style="display:none" onclick="clearWifi()">Fjern forbindelse</button>
+    </div>
+    <p class="hint">ESP32 genstarter ved ændring. AP (192.168.4.1) er altid tilgængeligt.</p>
+  </div>
+</div>
+
+<!-- Knock sensor konfiguration -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title">Knock sensor · konfiguration</span>
+    <button class="chev" id="chev-kn" onclick="tog('knb','chev-kn')">▼</button>
+  </div>
+  <div id="knb" style="display:none">
+    <div class="row">
+      <span class="lbl">Tærskel</span>
+      <input type="number" id="knock-thr" min="1" max="99" value="30" style="width:72px">
+      <span class="lbl">%</span>
+      <button class="btn btn-s" onclick="saveKnockThr()">Gem</button>
+      <button class="btn btn-s" onclick="resetKnockCount()">Nulstil tæller</button>
+      <span class="msg" id="knock-msg"></span>
+    </div>
+    <p class="hint">Peak-to-peak amplitude over 64 ADC-læsninger @ 5 Hz. Bar rød = over tærskel. 33k/10k spændingsdeler (12V indgang).</p>
+  </div>
+</div>
+
+<!-- Diagnostik -->
+<div class="section" style="margin-top:10px">
+  <div class="sec-head">
+    <span class="sec-title">System diagnostik</span>
+    <button class="chev" id="chev-d" onclick="tog('db','chev-d')">▼</button>
+  </div>
+  <div id="db" style="display:none">
+    <div class="row"><span class="lbl" style="min-width:90px">Oppetid</span><span id="d-uptime">—</span></div>
+    <div class="row"><span class="lbl" style="min-width:90px">Fri heap</span><span id="d-heap">—</span></div>
+    <div class="row"><span class="lbl" style="min-width:90px">AP klienter</span><span id="d-clients">—</span></div>
+    <div class="row"><span class="lbl" style="min-width:90px">STA RSSI</span><span id="d-rssi">—</span></div>
+    <div class="row"><span class="lbl" style="min-width:90px">Flash ledig</span><span id="d-fs">—</span></div>
+  </div>
+</div>
+
+<footer style="margin-top:12px"><a href="#">OTA firmware →</a></footer>
+
+<script>
+const $ = id => document.getElementById(id);
+let logRunning = false, isSynced = false;
+
+// ── Min/Max stats ─────────────────────────────────────────────────────────────
+const MM = {};
+function mmUpdate(key, v) {
+  if (v==null||isNaN(v)||v<0) return;
+  if (!MM[key]||v<MM[key][0]) MM[key]=[v,MM[key]?MM[key][1]:v];
+  if (v>MM[key][1]) MM[key][1]=v;
+}
+function mmShow(id, key, dec) {
+  if (!MM[key]) return;
+  $(id).textContent='↓'+MM[key][0].toFixed(dec)+'  ↑'+MM[key][1].toFixed(dec);
+}
+function resetStats() {
+  for (const k in MM) delete MM[k];
+  ['st-rpm','st-adv','st-dwell','st-map','st-inj','st-iac'].forEach(id=>$(id)&&($(id).textContent=''));
+}
+
+function setConn(ok) {
+  $('status').textContent = ok ? 'Forbundet (SIM)' : 'Afbrudt...';
+  $('dot').className = ok ? 'ok' : 'err';
+}
+function showOpt(id, on) {
+  $(id+'-card').classList.toggle('on', on);
+  const any = ['map','inj','iac'].some(x=>$(x+'-card').classList.contains('on'));
+  $('opt-grid').style.display = any ? '' : 'none';
+}
+function showMsg(id, txt, ok, ms=3000) {
+  const el=$(id); el.textContent=txt; el.className='msg '+(ok?'ok':'err');
+  if (ms) setTimeout(()=>el.className='msg', ms);
+}
+function tog(bodyId, chevId) {
+  const b=$(bodyId),c=$(chevId),open=b.style.display!=='none';
+  b.style.display=open?'none':''; c.textContent=open?'▼':'▲';
+  if(!open&&bodyId==='scb')setTimeout(drawScatter,50);
+}
+function fmtBytes(b) { return b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB'; }
+
+// ── Advance / MAP vs RPM scatter ──────────────────────────────────────────────
+const SC_MAX=2000;
+const scData=[];
+let scMode='adv';
+let scHasMap=false;
+
+function addScatter(rpm,adv,sync,map){
+  if(!sync||rpm<200)return;
+  if(adv<-10||adv>60)return;
+  scData.push({r:rpm,a:adv,m:map>=0?map:null});
+  if(scData.length>SC_MAX)scData.shift();
+  if(map>=0)scHasMap=true;
+  $('scatter-mode-btn').style.display=scHasMap?'':'none';
+}
+function clearScatter(){scData.length=0;scHasMap=false;$('scatter-mode-btn').style.display='none';drawScatter();}
+function toggleScatterMode(){
+  scMode=scMode==='adv'?'map':'adv';
+  $('scatter-mode-btn').textContent=scMode==='adv'?'MAP':'ADV';
+  $('scatter-title').textContent=scMode==='adv'?'Advance kurve · RPM vs °BTDC':'MAP kurve · RPM vs kPa';
+  drawScatter();
+}
+function exportScatter(){
+  if(!scData.length){alert('Ingen data endnu.');return;}
+  let csv='rpm,adv_btdc,map_kpa\n'+scData.map(p=>p.r.toFixed(0)+','+p.a.toFixed(2)+','+(p.m!=null?p.m.toFixed(1):'')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='engine_curve.csv';a.click();
+}
+function drawScatter(){
+  const cv=$('scatter');
+  if(!cv)return;
+  const W=cv.clientWidth||540,H=130;
+  cv.width=W;cv.height=H;
+  const c=cv.getContext('2d');
+  const PL=34,PR=8,PT=8,PB=20;
+  const RMAX=7000;
+  const isMap=scMode==='map';
+  const YMIN=isMap?20:-5, YMAX=isMap?110:50;
+  const YUNIT=isMap?'kPa':'°BTDC';
+  const dotColor=isMap?'rgba(129,199,132,0.35)':'rgba(100,181,246,0.35)';
+  c.fillStyle='#111';c.fillRect(0,0,W,H);
+  c.strokeStyle='#1a1a1a';c.lineWidth=1;
+  for(let i=0;i<=7;i++){
+    const x=PL+(W-PL-PR)*i/7;
+    c.beginPath();c.moveTo(x,PT);c.lineTo(x,H-PB);c.stroke();
+    c.fillStyle='#2a2a2a';c.font='8px monospace';c.textAlign='center';
+    c.fillText((RMAX/7*i/1000).toFixed(0)+'k',x,H-PB+10);
+  }
+  for(let i=0;i<=5;i++){
+    const y=PT+(H-PT-PB)*i/5;
+    c.beginPath();c.moveTo(PL,y);c.lineTo(W-PR,y);c.stroke();
+    c.fillStyle='#2a2a2a';c.font='8px monospace';c.textAlign='right';
+    c.fillText((YMAX-(YMAX-YMIN)*i/5).toFixed(0),PL-2,y+3);
+  }
+  c.fillStyle='#333';c.font='9px sans-serif';
+  c.textAlign='center';c.fillText('RPM',W/2,H-1);
+  c.save();c.translate(8,H/2);c.rotate(-Math.PI/2);c.fillText(YUNIT,0,0);c.restore();
+  const pts=isMap?scData.filter(p=>p.m!=null):scData;
+  if(pts.length<2){
+    c.fillStyle='#333';c.font='11px sans-serif';c.textAlign='center';
+    c.fillText(isMap?'MAP sensor ikke forbundet':'Venter på data…',W/2,H/2);return;
+  }
+  c.fillStyle=dotColor;
+  pts.forEach(p=>{
+    const yv=isMap?p.m:p.a;
+    const x=PL+(W-PL-PR)*p.r/RMAX;
+    const y=PT+(H-PT-PB)*(1-(yv-YMIN)/(YMAX-YMIN));
+    c.beginPath();c.arc(x,y,2.5,0,6.28);c.fill();
+  });
+  const bins={};
+  pts.forEach(p=>{const b=Math.round(p.r/500)*500;const yv=isMap?p.m:p.a;if(!bins[b]){bins[b]={s:0,n:0};}bins[b].s+=yv;bins[b].n++;});
+  const keys=Object.keys(bins).map(Number).sort((a,b)=>a-b);
+  if(keys.length>1){
+    c.strokeStyle='#ff8c00';c.lineWidth=2;c.beginPath();
+    keys.forEach((k,i)=>{
+      const x=PL+(W-PL-PR)*k/RMAX;
+      const y=PT+(H-PT-PB)*(1-(bins[k].s/bins[k].n-YMIN)/(YMAX-YMIN));
+      i?c.lineTo(x,y):c.moveTo(x,y);
+    });
+    c.stroke();
+  }
+  $('scatter-pts').textContent=pts.length+' pt';
+}
+let scLastDraw=0;
+function maybeDrawScatter(){
+  const now=Date.now();
+  if(now-scLastDraw>1000){scLastDraw=now;drawScatter();}
+}
+
+// ── Charts ─────────────────────────────────────────────────────────────────
+const cd={r:[],a:[],m:[]}, MAX=300;
+function addPt(a,v){a.push(v);if(a.length>MAX)a.shift();}
+function drawChart(cvId,data,color,label,unit){
+  const cv=$(cvId);
+  if(!cv||cv.style.display==='none'||data.length<2)return;
+  const W=cv.clientWidth||540,H=72;
+  cv.width=W;cv.height=H;
+  const c=cv.getContext('2d');
+  const PL=38,PR=6,PT=5,PB=16;
+  c.fillStyle='#111';c.fillRect(0,0,W,H);
+  let mn=Math.min(...data),mx=Math.max(...data);
+  const rng=mx-mn||10;mn-=rng*.12;mx+=rng*.12;
+  c.strokeStyle='#1a1a1a';c.lineWidth=1;
+  for(let i=0;i<=3;i++){
+    const y=PT+(H-PT-PB)*i/3;
+    c.beginPath();c.moveTo(PL,y);c.lineTo(W-PR,y);c.stroke();
+    c.fillStyle='#3a3a3a';c.font='9px monospace';c.textAlign='right';
+    c.fillText((mx-(mx-mn)*i/3).toFixed(0),PL-2,y+3);
+  }
+  c.fillStyle='#444';c.font='10px sans-serif';c.textAlign='left';
+  c.fillText(label+' ['+unit+']',PL+2,H-3);
+  c.strokeStyle=color;c.lineWidth=1.5;c.beginPath();
+  const dx=(W-PL-PR)/(MAX-1),off=MAX-data.length;
+  data.forEach((v,i)=>{const x=PL+(off+i)*dx,y=PT+(H-PT-PB)*(1-(v-mn)/(mx-mn));i?c.lineTo(x,y):c.moveTo(x,y);});
+  c.stroke();
+}
+function redraw(){
+  drawChart('cr',cd.r,'#ff8c00','RPM','rpm');
+  drawChart('ca',cd.a,'#64b5f6','Advance','°BTDC');
+  if($('cm').style.display!=='none')drawChart('cm',cd.m,'#81c784','MAP','kPa');
+}
+
+// ── Stub handlers (simulation – no real ESP32) ────────────────────────────────
+function toggleLog(){ logRunning=!logRunning; $('log-btn').textContent=logRunning?'⏹ Stop':'▶ Start'; $('log-btn').classList.toggle('on',logRunning); }
+function clearLog(){}
+function doAutoCal(){}
+function setOffset(){}
+function saveLabels(){}
+function setPreset(vmin,vmax,kmin,kmax){ $('map-vmin').value=vmin.toFixed(2);$('map-vmax').value=vmax.toFixed(2);$('map-kmin').value=kmin;$('map-kmax').value=kmax; }
+function useCurrentV(f){ $(f).value='1.234'; }
+function saveMapCfg(){}
+function saveKnockThr(){}
+function resetKnockCount(){}
+function saveWifi(){}
+function clearWifi(){}
+$('knock-thr').addEventListener('input',()=>$('knock-thr').dataset.user='1');
+
+// ── Simulation: inject realistic engine data ─────────────────────────────────
+let simT = 0;
+let simSyncCount = 0;
+
+function simTick() {
+  simT += 0.2;
+  // Realistic engine data with some variation
+  const baseRpm = 875 + Math.sin(simT * 0.3) * 80 + Math.sin(simT * 1.1) * 20;
+  const rpm = Math.max(600, baseRpm);
+  const adv = 10.2 + Math.sin(simT * 0.7) * 1.5 + Math.random() * 0.4 - 0.2;
+  const dwell = 3.14 + Math.sin(simT * 0.5) * 0.1;
+  const tooth = Math.floor((simT * 3) % 35);
+  const frac = Math.floor(Math.random() * 100);
+  const sync = 1;
+  const mapKpa = 98.5 + Math.sin(simT * 0.4) * 3 + Math.random() * 0.8 - 0.4;
+  const mapV = 0.5 + (mapKpa - 10) / (105 - 10) * (4.5 - 0.5);
+  const inj = 2.30 + Math.sin(simT * 0.3) * 0.08;
+  const iacPct = 45.0 + Math.sin(simT * 0.2) * 2;
+  const iacFreq = 14.2;
+  const knock = Math.max(0, 8 + Math.sin(simT * 2.3) * 5 + Math.random() * 4);
+  const knockC = Math.floor(simT * 0.1);
+  const knockThr = 30;
+  const logLines = Math.floor(simT * 2.5);
+  const logBytes = logLines * 42;
+
+  simSyncCount += (Math.random() < 0.01) ? 1 : 0;
+
+  const d = {
+    r: rpm, a: adv, d: dwell, t: tooth, f: frac, s: sync, sc: simSyncCount,
+    m: mapKpa, mv: mapV,
+    i: inj, c: iacPct, cf: iacFreq,
+    k: knock, kc: knockC, kt: knockThr,
+    lc: logLines, la: logRunning ? 1 : 0, lb: logBytes
+  };
+
+  // Apply same logic as ws.onmessage in original
+  $('rpm').textContent=d.r.toFixed(0);
+  $('adv').textContent=d.a.toFixed(1);
+  $('dwell').textContent=d.d.toFixed(2);
+  if(d.r>0) $('dwell-deg').textContent=(d.d*d.r/166.67).toFixed(1)+'°';
+  isSynced=d.s===1;
+  const se=$('sync');se.textContent=isSynced?'OK':'NEJ';se.className='val '+(isSynced?'ok':'nok');
+  $('cal-btn').disabled=!isSynced;$('cal-btn').classList.toggle('ok',isSynced);
+  if(d.mv!==undefined){$('map-v-live').textContent=d.mv.toFixed(3);}
+  if(d.m>=0){showOpt('map',true);$('map').textContent=d.m.toFixed(1);$('cm').style.display='';}
+  else{showOpt('map',false);$('cm').style.display='none';}
+  if(d.i>=0){showOpt('inj',true);$('inj').textContent=d.i.toFixed(2);}else showOpt('inj',false);
+  if(d.c>=0){
+    showOpt('iac',true);$('iac').textContent=d.c.toFixed(1);
+    $('iac-unit').textContent=(d.cf>0?d.cf.toFixed(1)+' Hz · ':'')+'% duty · GPIO32';
+  }else showOpt('iac',false);
+  $('bar').style.width=Math.min(d.t/35*100,100)+'%';
+  $('tooth-val').textContent='Tand '+d.t+'.'+String(d.f).padStart(2,'0')+' / 35';
+  if(d.sc!==undefined)$('sync-count').textContent='syncs: '+d.sc;
+  $('log-info').textContent=d.lc+' linjer · '+fmtBytes(d.lb);
+  if(d.r>0){mmUpdate('rpm',d.r);mmShow('st-rpm','rpm',0);}
+  mmUpdate('adv',d.a);mmShow('st-adv','adv',1);
+  if(d.d>0){mmUpdate('dwell',d.d);mmShow('st-dwell','dwell',2);}
+  if(d.m>=0){mmUpdate('map',d.m);mmShow('st-map','map',1);}
+  if(d.i>=0){mmUpdate('inj',d.i);mmShow('st-inj','inj',2);}
+  if(d.c>=0){mmUpdate('iac',d.c);mmShow('st-iac','iac',1);}
+  if(d.k!==undefined){
+    $('knock-val').textContent=Math.round(d.k)+'%';
+    const exc=d.k>d.kt;
+    $('knock-bar').style.width=Math.min(d.k,100)+'%';
+    $('knock-bar').style.background=exc?'#f44336':'linear-gradient(90deg,#4caf50,#ffb347)';
+    $('knock-thr-disp').textContent=d.kt;
+    $('knock-kc').textContent=d.kc;
+    if($('knock-thr').dataset.user!=='1')$('knock-thr').value=d.kt;
+  }
+  addPt(cd.r,d.r);addPt(cd.a,d.a);if(d.m>=0)addPt(cd.m,d.m);
+  addScatter(d.r,d.a,d.s,d.m);
+  redraw();
+  maybeDrawScatter();
+}
+
+// Populate status + wifi config with mock data
+$('cal-val').value = 215;
+$('fs-info').textContent = 'Ledig: 156 KB / 192 KB';
+$('d-uptime').textContent = '00m 00s';
+$('d-heap').textContent = '198 KB';
+$('d-clients').textContent = '1 forbundet';
+$('d-rssi').textContent = '-62 dBm';
+$('d-fs').textContent = '156 KB / 192 KB';
+
+setConn(true);
+
+// Run 120 ticks to pre-populate charts and scatter before screenshot
+for(let i=0;i<120;i++) simTick();
+
+// Continue live simulation
+setInterval(simTick, 200);
+</script>
+</body>
+</html>

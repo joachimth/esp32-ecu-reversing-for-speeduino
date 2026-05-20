@@ -206,6 +206,10 @@ firmware/
   data/index.html       web dashboard (LittleFS, ~5 KB)
   platformio.ini
 
+sim/
+  index.html            simuleret dashboard – ingen ESP32 nødvendig (åbn direkte i browser)
+  screenshot.js         Playwright-script til automatiske screenshots af dashboardet
+
 docs/
   index.html            web flasher (GitHub Pages, ESP Web Tools)
   manifest.json         ESP Web Tools manifest → releases/latest
@@ -222,6 +226,28 @@ pio run -t upload               # flash firmware via USB
 pio run -t uploadfs             # flash web UI via USB
 pio device monitor              # serial monitor 115200 baud
 ```
+
+## Web UI simulation (uden ESP32)
+```bash
+# Åbn dashboardet direkte i browser (ingen server nødvendig)
+open sim/index.html
+
+# Tag screenshots automatisk med Playwright
+node sim/screenshot.js
+# → gemmer: screenshot_top.png, screenshot_bottom.png, screenshot_mobile.png, screenshot_full.png
+```
+
+`sim/index.html` er identisk med `firmware/data/index.html` men med WebSocket erstattet af en
+JavaScript-datagenerator der producerer realistiske motordata:
+- RPM ~875 omdrejninger (varierer sinusformet)
+- Advance ~10.2° BTDC, Dwell ~3.14 ms
+- MAP ~98.5 kPa (Bosch 1-bar skalering)
+- Injektor ~2.30 ms, IAC ~45% duty @ 14.2 Hz
+- Knock amplitude ~8% (under tærskel)
+
+Simulatoren kører 120 ticks ved opstart så grafer og scatter-plot er udfyldt inden siden vises.
+Alle UI-sektioner, konfigurationspaneler og knapper fungerer visuelt (API-kald er stubbe).
+Nyttig til UI-udvikling, præsentation og screenshots uden bil eller hardware.
 
 ## Release procedure (web flash)
 ```bash

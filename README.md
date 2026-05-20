@@ -61,6 +61,20 @@ RPM,ADV,DWELL,TOOTH,SYNC
 875,10.2,3.14,20.51,1
 ```
 
+## Web UI simulation (uden ESP32)
+
+Det er muligt at forhåndsvise og screenshot-e dashboardet uden hardware via simulatoren i `sim/`:
+
+```bash
+# Åbn direkte i browser
+open sim/index.html
+
+# Eller tag screenshots med Playwright (kræver Node.js + Playwright installeret)
+node sim/screenshot.js
+```
+
+`sim/index.html` er en kopi af dashboardet hvor WebSocket-forbindelsen er erstattet af en JavaScript-generator der producerer realistiske motordata (RPM ~875, advance ~10°, MAP ~98 kPa, injektor, IAC, knock). Alle sektioner og grafer er fuldt funktionelle. Nyttig til UI-udvikling og præsentation uden bilen.
+
 ## Byg lokalt
 
 ```bash
