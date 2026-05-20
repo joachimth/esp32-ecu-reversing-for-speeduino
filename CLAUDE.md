@@ -108,7 +108,7 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 | `/`               | GET      | Live dashboard (LittleFS)                                           |
 | `/ws`             | WS       | WebSocket → JSON @ 5 Hz                                             |
 | `/status`         | GET      | `{offset, synced, logActive, logBytes, fsFree, fsTotal, staConnected, staIP, uptime, freeHeap, apClients, rssi}` |
-| `/cal`            | POST     | Auto-kalibrering (kræver sync) → `{offset}`                         |
+| `/cal`            | POST     | Auto-kalibrering (kræver sync, valgfri `angle=10`) → `{offset}`     |
 | `/cal/set`        | POST     | Manuel offset (form: `offset=215`) → `{offset}`                     |
 | `/wifi/config`    | GET      | `{ssid, connected, ip}` for STA-tilstand                            |
 | `/wifi/config`    | POST     | Sæt STA credentials (form: `ssid=…&pass=…`) → gemmer i NVS         |
@@ -240,6 +240,12 @@ Web flasher er live på:
 - [x] MAP ADC 8× oversampling (reducerer ESP32 ADC-støj med ~3×)
 - [x] Sync-tæller (sc) i WebSocket – viser missing-tooth events siden boot i tooth-sektionen
 - [x] CSV metadata-kommentar i logfil-header (offset + MAP skalering)
+- [x] Advance vs RPM scatter plot (live OEM tændingsmap, 2000 pt buffer, orange trendlinje)
+- [x] MAP vs RPM scatter (toggle ADV/MAP, vises automatisk ved MAP-tilslutning)
+- [x] Scatter CSV eksport (client-side download: rpm,adv_btdc,map_kpa)
+- [x] Dwell i grader (°) beregnet fra dwell_ms × RPM, vist i dwell-kort)
+- [x] Skærmvågen via Wake Lock API (forhindrer telefon i at slukke under monitorering)
+- [x] Konfigurerbar kalibreringsvinkel (POST /cal angle=X, default 10° BTDC)
 - [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
 - [ ] Knock sensor (analog, spektralanalyse på ADC – GPIO33 reserved)
 
