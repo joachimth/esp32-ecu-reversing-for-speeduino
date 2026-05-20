@@ -9,10 +9,10 @@ Reverse engineer Toyota 4E-FE OEM ECU via signalanalyse på NE (crank) og IGT (i
 ### Pin-oversigt
 | Pin    | Signal         | Type      | Beskyttelse           | Bemærkning        |
 |--------|----------------|-----------|-----------------------|-------------------|
-| GPIO25 | NE crank       | Digital   | 10k/20k deler (5V)    | Påkrævet          |
+| GPIO25 | NE crank       | Digital   | 10k/18k deler (5V)    | Påkrævet          |
 | GPIO26 | IGT ignition   | Digital   | 33k/10k deler (12V)   | Påkrævet          |
 | GPIO0  | CAL knap       | Digital   | Intern pull-up        | Påkrævet          |
-| GPIO34 | MAP sensor     | ADC       | 10k/20k deler (5V)    | Valgfri, auto-detekteret |
+| GPIO34 | MAP sensor     | ADC       | 10k/18k deler (5V)    | Valgfri, auto-detekteret |
 | GPIO35 | Fuel injektor  | Digital   | 33k/10k deler (12V)   | Valgfri, auto-detekteret |
 | GPIO32 | IAC ventil PWM | Digital   | 33k/10k deler (12V)   | Valgfri, auto-detekteret |
 
@@ -20,7 +20,7 @@ Reverse engineer Toyota 4E-FE OEM ECU via signalanalyse på NE (crank) og IGT (i
 ```
 NE / MAP (5V):   SIG ---[10k]---+--- GPIO
                                 |
-                               [20k]
+                               [18k]
                                 |
                                GND
 
@@ -54,7 +54,7 @@ advance    = calibOffset - rawAngle        [° BTDC]
 rpm        = 60_000_000 / (toothPeriodUs * 36)
 dwell      = (igtFall_us - igtRise_us) / 1000   [ms]
 vGpio      = analogRead(PIN_MAP) * 3.3 / 4095
-vSensor    = vGpio * 1.5                         [10k/20k divider kompensation]
+vSensor    = vGpio * 1.556                        [10k/18k divider kompensation: (10+18)/18]
 map_kPa    = mapKpaMin + (vSensor - mapVmin) / (mapVmax - mapVmin) * (mapKpaMax - mapKpaMin)
 inj_ms     = (injRise_us - injFall_us) / 1000    [ms]
 iac_pct    = iacHighUs / iacPeriodUs * 100       [%]
@@ -138,7 +138,7 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 | s    | Sync (0/1)                                     | —                     |
 | sc   | Sync-tæller (missing-tooth events siden boot)  | —                     |
 | m    | MAP kPa (beregnet via konfigureret kurve)      | -1                    |
-| mv   | MAP sensor-spænding i V (GPIO × 1.5 divider)   | —                     |
+| mv   | MAP sensor-spænding i V (GPIO × 1.556 divider)  | —                     |
 | i    | Injektor ms                                    | -1                    |
 | c    | IAC duty %                                     | -1                    |
 | cf   | IAC frekvens Hz                                | 0 = ikke aktiv        |
