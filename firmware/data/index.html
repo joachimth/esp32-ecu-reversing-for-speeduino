@@ -80,7 +80,7 @@ footer a:hover{color:#888}
 <div class="grid">
   <div class="card"><label>RPM</label><div class="val" id="rpm">—</div><div class="unit">omdrejninger/min</div><div class="stats" id="st-rpm"></div></div>
   <div class="card"><label>Advance</label><div class="val" id="adv">—</div><div class="unit">° BTDC</div><div class="stats" id="st-adv"></div></div>
-  <div class="card"><label>Dwell</label><div class="val" id="dwell">—</div><div class="unit">ms</div><div class="stats" id="st-dwell"></div></div>
+  <div class="card"><label>Dwell</label><div class="val" id="dwell">—</div><div class="unit">ms · <span id="dwell-deg" style="color:#555">—°</span></div><div class="stats" id="st-dwell"></div></div>
   <div class="card sync"><label>Sync</label><div class="val" id="sync">—</div><div class="unit">missing tooth lock</div></div>
 </div>
 
@@ -124,7 +124,10 @@ footer a:hover{color:#888}
   </div>
   <div id="scb">
     <canvas id="scatter" style="height:130px"></canvas>
-    <p class="hint" style="margin-top:6px">Viser ECU'ens OEM tændingsmap. Samler datapunkter mens motoren kører. ✕ = ryd.</p>
+    <div class="row" style="margin-top:8px">
+      <button class="btn btn-dl" onclick="exportScatter()" style="font-size:.75rem;padding:5px 10px">⬇ Eksport CSV</button>
+    </div>
+    <p class="hint" style="margin-top:6px">Viser ECU'ens OEM tændingsmap. Orange linje = gennemsnit pr. 500 RPM. ✕ = ryd.</p>
   </div>
 </div>
 
@@ -326,6 +329,13 @@ function addScatter(rpm,adv,sync){
   if(scData.length>SC_MAX)scData.shift();
 }
 function clearScatter(){scData.length=0;drawScatter();}
+function exportScatter(){
+  if(!scData.length){alert('Ingen data endnu.');return;}
+  let csv='rpm,adv_btdc\n'+scData.map(p=>p.r.toFixed(0)+','+p.a.toFixed(2)).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='advance_curve.csv';a.click();
+}
 function drawScatter(){
   const cv=$('scatter');
   if(!cv||cv.style.display==='none')return;
@@ -431,6 +441,8 @@ function connect(){
     $('rpm').textContent=d.r.toFixed(0);
     $('adv').textContent=d.a.toFixed(1);
     $('dwell').textContent=d.d.toFixed(2);
+    if(d.r>0)$('dwell-deg').textContent=(d.d*d.r/166.67).toFixed(1)+'°';
+    else $('dwell-deg').textContent='—°';
     isSynced=d.s===1;
     const se=$('sync');se.textContent=isSynced?'OK':'NEJ';se.className='val '+(isSynced?'ok':'nok');
     $('cal-btn').disabled=!isSynced;$('cal-btn').classList.toggle('ok',isSynced);
