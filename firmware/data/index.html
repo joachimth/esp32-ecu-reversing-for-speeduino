@@ -160,7 +160,10 @@ footer a:hover{color:#888}
   </div>
   <div id="kb">
     <div class="row">
-      <button class="btn btn-o" id="cal-btn" onclick="doAutoCal()" disabled>⊙ Kalibrér ved idle</button>
+      <button class="btn btn-o" id="cal-btn" onclick="doAutoCal()" disabled>⊙ Kalibrér nu</button>
+      <span class="lbl">ved</span>
+      <input type="number" id="cal-angle" min="-10" max="60" step="0.5" value="10" style="width:58px">
+      <span class="lbl">° BTDC</span>
       <span class="msg" id="cal-msg"></span>
     </div>
     <div class="row" style="margin-top:8px">
@@ -168,7 +171,7 @@ footer a:hover{color:#888}
       <input type="number" id="cal-val" min="1" max="359" step="1" value="215">
       <button class="btn btn-s" onclick="setOffset()">Gem</button>
     </div>
-    <p class="hint">Motor skal køre og være synkroniseret for auto-kalibrering. Idle = 10° BTDC (Toyota standard).</p>
+    <p class="hint">Kalibrér ved et kendt advance. Standard: idle = 10° BTDC (Toyota 4E-FE).</p>
   </div>
 </div>
 
@@ -497,7 +500,9 @@ function clearLog(){
 
 // ── Calibration ──────────────────────────────────────────────────────────────
 async function doAutoCal(){
-  const r=await fetch('/cal',{method:'POST'});const d=await r.json();
+  const angle=parseFloat($('cal-angle').value)||10;
+  const fd=new FormData();fd.append('angle',angle);
+  const r=await fetch('/cal',{method:'POST',body:fd});const d=await r.json();
   if(r.ok){$('cal-val').value=d.offset;showMsg('cal-msg','✓ Offset = '+d.offset+'°',true);}
   else showMsg('cal-msg','✗ '+d.error,false);
 }
@@ -590,6 +595,16 @@ fetch('/labels').then(r=>r.json()).then(d=>{
 }).catch(()=>{});
 
 connect();
+
+// Keep screen awake while monitoring
+let wakeLock=null;
+async function keepAwake(){
+  if('wakeLock' in navigator){
+    try{wakeLock=await navigator.wakeLock.request('screen');}catch(e){}
+  }
+}
+keepAwake();
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')keepAwake();});
 </script>
 </body>
 </html>

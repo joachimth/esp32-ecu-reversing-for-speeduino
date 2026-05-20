@@ -286,10 +286,12 @@ void setup()
     server.on("/cal", HTTP_POST, [](AsyncWebServerRequest* req) {
         noInterrupts(); bool s=synced; int tc=toothCount; interrupts();
         if (!s) { req->send(400,"application/json","{\"error\":\"Motor ikke synkroniseret\"}"); return; }
-        calibOffset = tc*10.0f + 10.0f;
+        float angle = req->hasParam("angle",true) ? req->getParam("angle",true)->value().toFloat() : 10.0f;
+        angle = constrain(angle, -10.0f, 60.0f);
+        calibOffset = tc*10.0f + angle;
         prefs.putFloat("offset", calibOffset);
         char buf[40]; snprintf(buf,sizeof(buf),"{\"offset\":%.1f}",calibOffset);
-        Serial.printf("CAL (web): offset=%.1f\n", calibOffset);
+        Serial.printf("CAL (web): offset=%.1f angle=%.1f\n", calibOffset, angle);
         req->send(200, "application/json", buf);
     });
     server.on("/cal/set", HTTP_POST, [](AsyncWebServerRequest* req) {
