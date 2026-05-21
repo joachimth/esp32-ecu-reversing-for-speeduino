@@ -7,23 +7,23 @@
       "chipFamily": "ESP32-C5",
       "parts": [
         {
-          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/bootloader.bin",
+          "path": "firmware/bootloader.bin",
           "offset": 8192
         },
         {
-          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/partitions.bin",
+          "path": "firmware/partitions.bin",
           "offset": 32768
         },
         {
-          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/boot_app0.bin",
+          "path": "firmware/boot_app0.bin",
           "offset": 57344
         },
         {
-          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/firmware.bin",
+          "path": "firmware/firmware.bin",
           "offset": 65536
         },
         {
-          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/littlefs.bin",
+          "path": "firmware/littlefs.bin",
           "offset": 3997696
         }
       ]
