@@ -61,7 +61,8 @@ jobs:
           retention-days: 90
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Job 2 – deploy docs/ til GitHub Pages (kører ved hvert push til main + tags)
+# Job 2 – deploy docs/ + firmware-binaries til GitHub Pages
+# manifest.json bruger relative stier (firmware/*.bin) → ingen CORS-problemer
 # ─────────────────────────────────────────────────────────────────────────────
   deploy-pages:
     needs: build
@@ -73,11 +74,24 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Download firmware artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: ignition-logger-firmware
+          path: firmware-bins/
+
+      - name: Bundle docs + firmware til Pages
+        run: |
+          mkdir -p pages-bundle/firmware
+          cp -r docs/. pages-bundle/
+          cp firmware-bins/* pages-bundle/firmware/
+          echo "=== pages-bundle/ ===" && ls -lh pages-bundle/ pages-bundle/firmware/
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: docs/
+          path: pages-bundle/
 
       - uses: actions/deploy-pages@v4
         id: deploy
