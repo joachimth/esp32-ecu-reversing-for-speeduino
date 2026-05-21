@@ -7,23 +7,23 @@
       "chipFamily": "ESP32-C5",
       "parts": [
         {
-          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/bootloader.bin",
+          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/download/latest/bootloader.bin",
           "offset": 8192
         },
         {
-          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/partitions.bin",
+          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/download/latest/partitions.bin",
           "offset": 32768
         },
         {
-          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/boot_app0.bin",
+          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/download/latest/boot_app0.bin",
           "offset": 57344
         },
         {
-          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/firmware.bin",
+          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/download/latest/firmware.bin",
           "offset": 65536
         },
         {
-          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/littlefs.bin",
+          "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/download/latest/littlefs.bin",
           "offset": 3997696
         }
       ]
