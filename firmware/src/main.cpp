@@ -19,7 +19,8 @@
 //   IGT   → GPIO5   (was GPIO26)  12V via 33k/10k divider
 //   CAL   → GPIO10  (was GPIO0)
 //   MAP   → GPIO2   (was GPIO34)  5V via 10k/18k divider, ADC1_CH2
-//   INJ   → GPIO11  (was GPIO35)  12V via 33k/10k divider
+//   INJ   → GPIO15  (was GPIO35)  12V via 33k/10k divider
+//           (GPIO11 = UART0 TX, brugt af Serial → kan ikke bruges til INJ)
 //   IAC   → GPIO23  (was GPIO32)  12V via 33k/10k divider
 //   KNOCK → GPIO3   (was GPIO33)  12V via 33k/10k divider, ADC1_CH3
 //   SDA   → GPIO21  (unchanged)
@@ -28,7 +29,7 @@
 #define PIN_IGT    5
 #define PIN_CAL   10
 #define PIN_MAP    2   // ADC1_CH2
-#define PIN_INJ   11
+#define PIN_INJ   15
 #define PIN_IAC   23
 #define PIN_KNOCK  3   // ADC1_CH3
 #define PIN_SDA   21
