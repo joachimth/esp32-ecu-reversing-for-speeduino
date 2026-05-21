@@ -363,10 +363,17 @@ void setup()
     }
 
     // WiFi – AP always on; STA if configured
-    // ESP32-C5 defaults to WIFI_BAND_MODE_AUTO (2.4 + 5 GHz dual-band).
-    // The older esp_wifi_get_protocol() API used internally does not work in
-    // AUTO band mode, causing a crash loop. Force 2.4 GHz only before init.
-    esp_wifi_set_band_mode(WIFI_BAND_MODE_2G_ONLY);
+    // ESP32-C5 er dual-band (2.4 + 5 GHz). esp_wifi_set_band_mode() kræver
+    // at WiFi-driveren er initialiseret via esp_wifi_init() inden kald.
+    // Ellers → null pointer dereference → CPU_LOCKUP crash.
+    // Rækkefølge: init driver → sæt band → lad Arduino WiFi.mode() køre
+    // (WiFi.mode() kalder esp_wifi_init() igen, som returnerer "already init"
+    // og fortsætter med esp_wifi_set_mode() + esp_wifi_start()).
+    {
+        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+        esp_wifi_init(&cfg);
+        esp_wifi_set_band_mode(WIFI_BAND_MODE_2G_ONLY);
+    }
     WiFi.mode(staSSID.length() > 0 ? WIFI_AP_STA : WIFI_AP);
     WiFi.softAP(AP_SSID, AP_PASS);
     dnsServer.start(53, "*", WiFi.softAPIP());
