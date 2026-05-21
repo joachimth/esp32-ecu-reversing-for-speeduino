@@ -4,11 +4,11 @@
   "new_install_prompt_erase": true,
   "builds": [
     {
-      "chipFamily": "ESP32",
+      "chipFamily": "ESP32-C5",
       "parts": [
         {
           "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/bootloader.bin",
-          "offset": 4096
+          "offset": 8192
         },
         {
           "path": "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/partitions.bin",

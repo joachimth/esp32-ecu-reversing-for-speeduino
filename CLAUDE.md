@@ -4,20 +4,22 @@
 Reverse engineer Toyota 4E-FE OEM ECU via signalanalyse på NE (crank) og IGT (ignition).
 
 ## Hardware
-- **Board**: ESP32 (esp32dev)
+- **Board**: ESP32-C5-WROOM-1 (esp32-c5-devkitc-1)
 
-### Pin-oversigt
+### Pin-oversigt (ESP32-C5)
 | Pin    | Signal         | Type      | Beskyttelse           | Bemærkning        |
 |--------|----------------|-----------|-----------------------|-------------------|
-| GPIO25 | NE crank       | Digital   | 10k/18k deler (5V)    | Påkrævet          |
-| GPIO26 | IGT ignition   | Digital   | 33k/10k deler (12V)   | Påkrævet          |
-| GPIO0  | CAL knap       | Digital   | Intern pull-up        | Påkrævet          |
-| GPIO34 | MAP sensor     | ADC       | 10k/18k deler (5V)    | Valgfri, auto-detekteret |
-| GPIO35 | Fuel injektor  | Digital   | 33k/10k deler (12V)   | Valgfri, auto-detekteret |
-| GPIO32 | IAC ventil PWM | Digital   | 33k/10k deler (12V)   | Valgfri, auto-detekteret |
-| GPIO33 | Knock sensor   | ADC       | 33k/10k deler (12V)   | Valgfri, altid samplet   |
+| GPIO6  | NE crank       | Digital   | 10k/18k deler (5V)    | Påkrævet          |
+| GPIO5  | IGT ignition   | Digital   | 33k/10k deler (12V)   | Påkrævet          |
+| GPIO10 | CAL knap       | Digital   | Intern pull-up        | Påkrævet          |
+| GPIO2  | MAP sensor     | ADC1_CH2  | 10k/18k deler (5V)    | Valgfri, auto-detekteret |
+| GPIO15 | Fuel injektor  | Digital   | 33k/10k deler (12V)   | Valgfri, auto-detekteret |
+| GPIO23 | IAC ventil PWM | Digital   | 33k/10k deler (12V)   | Valgfri, auto-detekteret |
+| GPIO3  | Knock sensor   | ADC1_CH3  | 33k/10k deler (12V)   | Valgfri, altid samplet   |
 | GPIO21 | OLED SDA       | I2C       | Ingen                  | Valgfri, auto-detekteret |
-| GPIO22 | OLED SCL       | I2C       | Ingen                  | Valgfri, auto-detekteret |
+| GPIO20 | OLED SCL       | I2C       | Ingen                  | Valgfri, auto-detekteret |
+
+Undgå GPIO9-14 (SPI flash / USB DP/DM), GPIO11/12 (UART0 TX/RX), GPIO18/19 (native USB).
 
 ### Spændingsdelere
 ```
@@ -80,7 +82,7 @@ Tand-tæller nulstilles ved missing-tooth: dt > lastPeriod × 1.7.
 Frac clampes til [0, 1] og nulstilles hvis motoren er stoppet (dt > period × 3).
 
 ## Kalibrering
-Tryk GPIO0 kortvarigt ved idle (motor = 10° BTDC, standard Toyota):
+Tryk GPIO10 kortvarigt ved idle (motor = 10° BTDC, standard Toyota):
 ```
 calibOffset = toothCount * 10 + 10
 ```
@@ -192,8 +194,8 @@ nyere ESP-IDF. OTA via Arduino `Update`-biblioteket (del af framework). DNS via 
 | app1    | app  | 0x1F0000   | 1875 KB   |
 | spiffs  | data | 0x3D0000   | 192 KB    |
 
-Web Tools manifest-offsets (decimal):
-- bootloader.bin  → 4096
+Web Tools manifest-offsets (decimal) – ESP32-C5:
+- bootloader.bin  → 8192   (0x2000, C5 bootloader starter her – ikke 0x1000 som ESP32)
 - partitions.bin  → 32768
 - boot_app0.bin   → 57344
 - firmware.bin    → 65536
@@ -291,7 +293,7 @@ Web flasher er live på:
 - [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
 
 ### v2 – OLED standalone display
-- [x] SSD1306 128x64 OLED via I2C (GPIO21=SDA, GPIO22=SCL) – auto-detekteret ved boot
+- [x] SSD1306 128x64 OLED via I2C (GPIO21=SDA, GPIO20=SCL) – auto-detekteret ved boot
 - [x] Live gauge ved bilen uden PC/telefon:
   ```
   RPM: 875   ADV: 10.1°
