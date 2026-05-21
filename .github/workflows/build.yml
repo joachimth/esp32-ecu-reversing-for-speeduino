@@ -83,11 +83,39 @@ jobs:
         id: deploy
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Job 3 – opret GitHub Release med binaries (kun ved tag-push: v*)
+# Job 3 – automatisk "latest" release ved hvert push til main
+# Overskriver den forrige latest-release med nye binaries.
+# Web flasher manifest peger på releases/latest/download/ → virker altid.
+# ─────────────────────────────────────────────────────────────────────────────
+  auto-release:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: ignition-logger-firmware
+          path: release/
+
+      - name: Publish rolling 'latest' release
+        run: |
+          SHA="${{ github.sha }}"
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create latest release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Latest Build" \
+            --notes "Automatisk bygget fra main (${SHA:0:7}). Flash via webflasheren på GitHub Pages." \
+            --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Job 4 – navngivet release med changelog (kun ved tag-push: v*)
 # ─────────────────────────────────────────────────────────────────────────────
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 
     steps:
@@ -100,3 +128,4 @@ jobs:
         with:
           files: release/*
           generate_release_notes: true
+          make_latest: true
