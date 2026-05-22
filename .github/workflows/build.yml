@@ -115,12 +115,12 @@ jobs:
       - name: Publish rolling 'latest' release
         run: |
           SHA="${{ github.sha }}"
-          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
           gh release create latest release/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "Latest Build" \
             --notes "Automatisk bygget fra main (${SHA:0:7}). Flash via webflasheren på GitHub Pages." \
-            --latest
+            --latest \
+            --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
