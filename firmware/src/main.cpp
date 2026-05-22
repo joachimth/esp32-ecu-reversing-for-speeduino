@@ -315,6 +315,7 @@ void setup()
 {
     Serial.begin(115200);
     Serial.println("RPM,ADV,DWELL,TOOTH,SYNC");
+    Serial.print("S1"); Serial.flush(); // after Serial init
     pinMode(PIN_NE,  INPUT); pinMode(PIN_IGT, INPUT);
     pinMode(PIN_CAL, INPUT_PULLUP);
     pinMode(PIN_INJ, INPUT); pinMode(PIN_IAC, INPUT);
@@ -323,7 +324,9 @@ void setup()
     attachInterrupt(digitalPinToInterrupt(PIN_INJ), injISR,   CHANGE);
     attachInterrupt(digitalPinToInterrupt(PIN_IAC), iacISR,   CHANGE);
 
+    Serial.print("S2"); Serial.flush(); // before prefs
     prefs.begin("ign", false);
+    Serial.print("S2a"); Serial.flush(); // prefs.begin() done
     calibOffset = prefs.getFloat("offset",    215.0f);
     staSSID     = prefs.getString("sta_ssid", "");
     staPass     = prefs.getString("sta_pass", "");
@@ -335,6 +338,7 @@ void setup()
     lblInj      = prefs.getString("lbl_inj", "Injektor");
     lblIac      = prefs.getString("lbl_iac", "IAC");
     knockThresh = (uint8_t)prefs.getUInt("knock_thr", 30);
+    Serial.print("S3"); Serial.flush(); // prefs reads done
 
     // OLED auto-detect (SSD1306 at 0x3C)
     Wire.begin(PIN_SDA, PIN_SCL);
@@ -351,8 +355,10 @@ void setup()
     } else {
         Serial.println("OLED: ikke funnet (GPIO21/22)");
     }
+    Serial.print("S4"); Serial.flush(); // after OLED
 
     LittleFS.begin(true);
+    Serial.print("S5"); Serial.flush(); // after LittleFS
 
     // Restore log counters from existing file
     if (LittleFS.exists("/ignlog.csv")) {
@@ -361,6 +367,7 @@ void setup()
         logCount = max(0, (logBytes - 90) / 52); // estimate
         f.close();
     }
+    Serial.print("S6"); Serial.flush(); // before WiFi
 
     // WiFi – AP always on; STA if configured
     // ESP32-C5 er dual-band (2.4 + 5 GHz). esp_wifi_set_band_mode() kræver
@@ -372,10 +379,14 @@ void setup()
     {
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
         esp_wifi_init(&cfg);
+        Serial.print("S6a"); Serial.flush(); // after esp_wifi_init
         esp_wifi_set_band_mode(WIFI_BAND_MODE_2G_ONLY);
+        Serial.print("S6b"); Serial.flush(); // after esp_wifi_set_band_mode
     }
     WiFi.mode(staSSID.length() > 0 ? WIFI_AP_STA : WIFI_AP);
+    Serial.print("S7"); Serial.flush(); // after WiFi.mode
     WiFi.softAP(AP_SSID, AP_PASS);
+    Serial.print("S8"); Serial.flush(); // after softAP
     dnsServer.start(53, "*", WiFi.softAPIP());
     Serial.printf("AP: %s  IP: %s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
     if (staSSID.length() > 0) {
