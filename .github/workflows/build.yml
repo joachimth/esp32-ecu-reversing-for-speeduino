@@ -115,12 +115,25 @@ jobs:
       - name: Publish rolling 'latest' release
         run: |
           SHA="${{ github.sha }}"
+          SHORT="${SHA:0:7}"
+
+          # Slet eksisterende release (hent ID via API)
+          RELEASE_ID=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" \
+            --jq '.id' 2>/dev/null || echo "")
+          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"
+          fi
+
+          # Slet git-tagget separat (API er mere pålidelig end --cleanup-tag)
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/latest" \
+            2>/dev/null || true
+
+          # Opret nyt release med opdaterede binaries
           gh release create latest release/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "Latest Build" \
-            --notes "Automatisk bygget fra main (${SHA:0:7}). Flash via webflasheren på GitHub Pages." \
-            --latest \
-            --clobber
+            --notes "Automatisk bygget fra main (${SHORT}). Flash via webflasheren på GitHub Pages." \
+            --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
