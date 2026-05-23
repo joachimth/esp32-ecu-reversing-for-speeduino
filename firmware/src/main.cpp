@@ -343,21 +343,11 @@ void setup()
     knockThresh = (uint8_t)prefs.getUInt("knock_thr", 30);
     Serial.print("S3"); Serial.flush(); // prefs reads done
 
-    // OLED auto-detect (SSD1306 at 0x3C)
-    Wire.begin(PIN_SDA, PIN_SCL);
-    Wire.beginTransmission(0x3C);
-    if (Wire.endTransmission() == 0) {
-        oledOk = u8g2.begin();
-        if (oledOk) {
-            u8g2.clearBuffer();
-            u8g2.setFont(u8g2_font_6x10_tf);
-            u8g2.drawStr(12, 32, "IgnLogger v1");
-            u8g2.sendBuffer();
-        }
-        Serial.println("OLED: funnet");
-    } else {
-        Serial.println("OLED: ikke funnet (GPIO21/22)");
-    }
+    // OLED auto-detect disabled: Wire.begin() crashes on ESP32-C5 eco2 because
+    // arduino-esp32 3.3.8 uses the legacy i2c_driver_install() API which accesses
+    // I2C peripheral registers at addresses that don't match C5 eco2 hardware.
+    // TODO: re-enable once arduino-esp32 has native ESP32-C5 I2C HAL support.
+    oledOk = false;
     Serial.print("S4"); Serial.flush(); // after OLED
 
     LittleFS.begin(true);
