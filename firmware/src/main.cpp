@@ -313,12 +313,10 @@ static void pushToClients()
 void setup()
 {
     Serial.begin(115200);
-    // Let ESP-IDF MSPI timing calibration finish before any flash access.
-    // On ESP32-C5, MSPI timing runs concurrently with early setup(); prefs/NVS
-    // access during calibration can trigger a CPU_LOCKUP machine exception.
+    // Brief delay lets ESP-IDF MSPI timing calibration (which runs concurrently
+    // with early setup() on ESP32-C5) finish before the first flash/NVS access.
     delay(500);
     Serial.println("RPM,ADV,DWELL,TOOTH,SYNC");
-    Serial.print("S1"); Serial.flush(); // after Serial init
     pinMode(PIN_NE,  INPUT); pinMode(PIN_IGT, INPUT);
     pinMode(PIN_CAL, INPUT_PULLUP);
     pinMode(PIN_INJ, INPUT); pinMode(PIN_IAC, INPUT);
@@ -327,9 +325,7 @@ void setup()
     attachInterrupt(digitalPinToInterrupt(PIN_INJ), injISR,   CHANGE);
     attachInterrupt(digitalPinToInterrupt(PIN_IAC), iacISR,   CHANGE);
 
-    Serial.print("S2"); Serial.flush(); // before prefs
     prefs.begin("ign", false);
-    Serial.print("S2a"); Serial.flush(); // prefs.begin() done
     calibOffset = prefs.getFloat("offset",    215.0f);
     staSSID     = prefs.getString("sta_ssid", "");
     staPass     = prefs.getString("sta_pass", "");
@@ -341,17 +337,14 @@ void setup()
     lblInj      = prefs.getString("lbl_inj", "Injektor");
     lblIac      = prefs.getString("lbl_iac", "IAC");
     knockThresh = (uint8_t)prefs.getUInt("knock_thr", 30);
-    Serial.print("S3"); Serial.flush(); // prefs reads done
 
     // OLED auto-detect disabled: Wire.begin() crashes on ESP32-C5 eco2 because
     // arduino-esp32 3.3.8 uses the legacy i2c_driver_install() API which accesses
     // I2C peripheral registers at addresses that don't match C5 eco2 hardware.
     // TODO: re-enable once arduino-esp32 has native ESP32-C5 I2C HAL support.
     oledOk = false;
-    Serial.print("S4"); Serial.flush(); // after OLED
 
     LittleFS.begin(true);
-    Serial.print("S5"); Serial.flush(); // after LittleFS
 
     // Restore log counters from existing file
     if (LittleFS.exists("/ignlog.csv")) {
@@ -360,15 +353,12 @@ void setup()
         logCount = max(0, (logBytes - 90) / 52); // estimate
         f.close();
     }
-    Serial.print("S6"); Serial.flush(); // before WiFi
 
     // WiFi – AP always on; STA if configured.
     // esp_wifi_set_band_mode removed: let Arduino WiFi stack manage init
     // internally. On ESP32-C5 AP defaults to 2.4 GHz which is what we need.
     WiFi.mode(staSSID.length() > 0 ? WIFI_AP_STA : WIFI_AP);
-    Serial.print("S7"); Serial.flush(); // after WiFi.mode
     WiFi.softAP(AP_SSID, AP_PASS);
-    Serial.print("S8"); Serial.flush(); // after softAP
     dnsServer.start(53, "*", WiFi.softAPIP());
     Serial.printf("AP: %s  IP: %s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
     if (staSSID.length() > 0) {
