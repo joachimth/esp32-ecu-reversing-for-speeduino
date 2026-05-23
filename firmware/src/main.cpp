@@ -7,7 +7,6 @@
 #include <DNSServer.h>
 #include <Wire.h>
 #include <U8g2lib.h>
-#include "esp_wifi.h"   // for esp_wifi_set_band_mode (ESP32-C5 dual-band fix)
 
 // ─── Pins (ESP32-C5-WROOM-1) ─────────────────────────────────────────────────
 // ADC1 pins (GPIO0-6) are reliable with WiFi active.
@@ -314,6 +313,10 @@ static void pushToClients()
 void setup()
 {
     Serial.begin(115200);
+    // Let ESP-IDF MSPI timing calibration finish before any flash access.
+    // On ESP32-C5, MSPI timing runs concurrently with early setup(); prefs/NVS
+    // access during calibration can trigger a CPU_LOCKUP machine exception.
+    delay(500);
     Serial.println("RPM,ADV,DWELL,TOOTH,SYNC");
     Serial.print("S1"); Serial.flush(); // after Serial init
     pinMode(PIN_NE,  INPUT); pinMode(PIN_IGT, INPUT);
@@ -369,20 +372,9 @@ void setup()
     }
     Serial.print("S6"); Serial.flush(); // before WiFi
 
-    // WiFi – AP always on; STA if configured
-    // ESP32-C5 er dual-band (2.4 + 5 GHz). esp_wifi_set_band_mode() kræver
-    // at WiFi-driveren er initialiseret via esp_wifi_init() inden kald.
-    // Ellers → null pointer dereference → CPU_LOCKUP crash.
-    // Rækkefølge: init driver → sæt band → lad Arduino WiFi.mode() køre
-    // (WiFi.mode() kalder esp_wifi_init() igen, som returnerer "already init"
-    // og fortsætter med esp_wifi_set_mode() + esp_wifi_start()).
-    {
-        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-        esp_wifi_init(&cfg);
-        Serial.print("S6a"); Serial.flush(); // after esp_wifi_init
-        esp_wifi_set_band_mode(WIFI_BAND_MODE_2G_ONLY);
-        Serial.print("S6b"); Serial.flush(); // after esp_wifi_set_band_mode
-    }
+    // WiFi – AP always on; STA if configured.
+    // esp_wifi_set_band_mode removed: let Arduino WiFi stack manage init
+    // internally. On ESP32-C5 AP defaults to 2.4 GHz which is what we need.
     WiFi.mode(staSSID.length() > 0 ? WIFI_AP_STA : WIFI_AP);
     Serial.print("S7"); Serial.flush(); // after WiFi.mode
     WiFi.softAP(AP_SSID, AP_PASS);
