@@ -98,13 +98,15 @@ jobs:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Job 3 – automatisk "latest" release ved hvert push til main
-# Overskriver den forrige latest-release med nye binaries.
-# Web flasher manifest peger på releases/latest/download/ → virker altid.
+# Bruger Octokit (github-script) til sletning og ncipollo til oprettelse –
+# undgår gh CLI autentificeringsfejl (401) der opstår sammen med deploy-pages.
 # ─────────────────────────────────────────────────────────────────────────────
   auto-release:
     needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/download-artifact@v6
@@ -112,30 +114,31 @@ jobs:
           name: ignition-logger-firmware
           path: release/
 
-      - name: Publish rolling 'latest' release
-        run: |
-          SHA="${{ github.sha }}"
-          SHORT="${SHA:0:7}"
+      - name: Slet eksisterende 'latest' release og tag
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            try {
+              const {data} = await github.rest.repos.getReleaseByTag({owner, repo, tag: 'latest'});
+              await github.rest.repos.deleteRelease({owner, repo, release_id: data.id});
+              console.log('Slettet eksisterende release');
+            } catch(e) { console.log('Ingen eksisterende release:', e.message); }
+            try {
+              await github.rest.git.deleteRef({owner, repo, ref: 'tags/latest'});
+              console.log('Slettet eksisterende tag');
+            } catch(e) { console.log('Ingen eksisterende tag:', e.message); }
 
-          # Slet eksisterende release (hent ID via API)
-          RELEASE_ID=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" \
-            --jq '.id' 2>/dev/null || echo "")
-          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
-            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"
-          fi
-
-          # Slet git-tagget separat (API er mere pålidelig end --cleanup-tag)
-          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/latest" \
-            2>/dev/null || true
-
-          # Opret nyt release med opdaterede binaries
-          gh release create latest release/* \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "Latest Build" \
-            --notes "Automatisk bygget fra main (${SHORT}). Flash via webflasheren på GitHub Pages." \
-            --latest
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Opret ny 'latest' release med opdaterede binaries
+        uses: ncipollo/release-action@v1
+        with:
+          tag: latest
+          commit: ${{ github.sha }}
+          name: "Latest Build"
+          body: "Automatisk bygget fra main (${{ github.sha }}). Flash via webflasheren på GitHub Pages."
+          artifacts: "release/*"
+          makeLatest: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Job 4 – navngivet release med changelog (kun ved tag-push: v*)
