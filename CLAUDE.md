@@ -278,8 +278,6 @@ Web flasher er live på:
 | Problem | Detalje | Status |
 |---------|---------|--------|
 | OLED deaktiveret | `Wire.begin()` crasher ESP32-C5 eco2 pga. legacy `i2c_driver_install()` API i arduino-esp32 3.3.8. `oledOk = false` hardkodet i `setup()`. | Afventer upstream fix |
-| Web UI GPIO-labels forkerte | `firmware/data/index.html` viser GPIO32/33/34/35 (original ESP32 layout) i sensor-kort og IAC-unit, men de rigtige pins er GPIO2/3/15/23 (ESP32-C5 layout). | Bug – skal rettes i HTML |
-| Partition størrelse | Dokumenteret som 1875 KB, faktisk 0x1D4000 = 1872 KB pr. OTA-partition. | Kosmetisk |
 
 ---
 

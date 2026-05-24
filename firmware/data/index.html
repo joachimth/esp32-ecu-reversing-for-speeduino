@@ -83,7 +83,7 @@ footer a:hover{color:#888}
   <div class="card"><label>Dwell</label><div class="val" id="dwell">—</div><div class="unit">ms · <span id="dwell-deg" style="color:#555">—°</span></div><div class="stats" id="st-dwell"></div></div>
   <div class="card sync"><label>Sync</label><div class="val" id="sync">—</div><div class="unit">missing tooth lock</div></div>
   <div class="card" id="knock-card" style="grid-column:1/-1">
-    <label>Knock sensor · GPIO33</label>
+    <label>Knock sensor · GPIO3</label>
     <div style="display:flex;align-items:center;gap:12px">
       <div class="val" id="knock-val" style="font-size:1.8rem;min-width:52px">0%</div>
       <div style="flex:1">
@@ -98,9 +98,9 @@ footer a:hover{color:#888}
 </div>
 
 <div class="grid" id="opt-grid" style="display:none">
-  <div class="card opt" id="map-card"><label id="card-lbl-map">MAP</label><div class="val" id="map">—</div><div class="unit">kPa · GPIO34</div><div class="stats" id="st-map"></div></div>
-  <div class="card opt" id="inj-card"><label id="card-lbl-inj">Injektor</label><div class="val" id="inj">—</div><div class="unit">ms · GPIO35</div><div class="stats" id="st-inj"></div></div>
-  <div class="card opt" id="iac-card"><label id="card-lbl-iac">IAC</label><div class="val" id="iac">—</div><div class="unit" id="iac-unit">% · GPIO32</div><div class="stats" id="st-iac"></div></div>
+  <div class="card opt" id="map-card"><label id="card-lbl-map">MAP</label><div class="val" id="map">—</div><div class="unit">kPa · GPIO2</div><div class="stats" id="st-map"></div></div>
+  <div class="card opt" id="inj-card"><label id="card-lbl-inj">Injektor</label><div class="val" id="inj">—</div><div class="unit">ms · GPIO15</div><div class="stats" id="st-inj"></div></div>
+  <div class="card opt" id="iac-card"><label id="card-lbl-iac">IAC</label><div class="val" id="iac">—</div><div class="unit" id="iac-unit">% · GPIO23</div><div class="stats" id="st-iac"></div></div>
 </div>
 
 <div class="section">
@@ -501,7 +501,7 @@ function connect(){
     if(d.i>=0){showOpt('inj',true);$('inj').textContent=d.i.toFixed(2);}else showOpt('inj',false);
     if(d.c>=0){
       showOpt('iac',true);$('iac').textContent=d.c.toFixed(1);
-      $('iac-unit').textContent=(d.cf>0?d.cf.toFixed(1)+' Hz · ':'')+'% duty · GPIO32';
+      $('iac-unit').textContent=(d.cf>0?d.cf.toFixed(1)+' Hz · ':'')+'% duty · GPIO23';
     }else showOpt('iac',false);
     $('bar').style.width=Math.min(d.t/35*100,100)+'%';
     $('tooth-val').textContent='Tand '+d.t+'.'+String(d.f).padStart(2,'0')+' / 35';
