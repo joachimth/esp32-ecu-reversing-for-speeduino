@@ -35,14 +35,19 @@ footer a{color:#555}
 <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
 
 <div class="steps">
-  <h3>Efter flash</h3>
+  <h3>Efter flash – 4 trin</h3>
   <ol>
-    <li>Tilslut til WiFi: <b>IgnLogger</b> &nbsp;/&nbsp; <code>ignition1</code></li>
-    <li>Åbn: <code>http://192.168.4.1</code></li>
-    <li>OTA opdatering: <code>http://192.168.4.1/update</code></li>
-    <li>Kalibrering: Tryk GPIO10 ved idle (10° BTDC)</li>
+    <li><b>WiFi</b>: forbind til <b>IgnLogger</b> / <code>ignition1</code></li>
+    <li><b>Åbn</b>: <code>http://192.168.4.1</code> (åbner automatisk)</li>
+    <li><b>Kalibrér</b>: tryk CAL-knap (GPIO10) ved idle = 10° BTDC</li>
+    <li><b>OTA</b> opdatering senere: <code>http://192.168.4.1/update</code></li>
   </ol>
-  <p class="note">NE signal: 10k/18k spændingsdeler (GPIO6) &nbsp;|&nbsp; IGT signal: 33k/10k spændingsdeler (GPIO5)</p>
+  <p class="note">
+    NE crank → <b>GPIO6</b> (10k/18k, 5V) &nbsp;·&nbsp;
+    IGT → <b>GPIO5</b> (33k/10k, 12V) &nbsp;·&nbsp;
+    CAL → <b>GPIO10</b> (knap til GND)<br>
+    Valgfri: MAP <b>GPIO2</b>, INJ <b>GPIO15</b>, IAC <b>GPIO23</b>, Knock <b>GPIO3</b>
+  </p>
 </div>
 
 <footer>
