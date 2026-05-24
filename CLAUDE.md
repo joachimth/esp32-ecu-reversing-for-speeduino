@@ -19,7 +19,7 @@ Reverse engineer Toyota 4E-FE OEM ECU via signalanalyse på NE (crank) og IGT (i
 | GPIO21 | OLED SDA       | I2C       | Ingen                  | Valgfri, auto-detekteret |
 | GPIO20 | OLED SCL       | I2C       | Ingen                  | Valgfri, auto-detekteret |
 
-Undgå GPIO9-14 (SPI flash / USB DP/DM), GPIO11/12 (UART0 TX/RX), GPIO18/19 (native USB).
+Reserverede pins der **ikke** må bruges: GPIO12–14 (intern SPI flash i modulet), GPIO18/19 (native USB D+/D-), GPIO11 (UART0 TX → Serial monitor).
 
 ### Spændingsdelere
 ```
