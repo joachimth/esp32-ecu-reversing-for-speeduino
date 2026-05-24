@@ -43,7 +43,7 @@ IGT / INJ / IAC (12V): SIG ---[33k]---+--- GPIO
 - **INJ**: Fuel injector puls. Falling = start, Rising = slut. Pulsbredde = indsprøjtningsvarighed.
 - **IAC**: PWM signal fra ECU. Duty cycle = ventil-åbning %.
 - **Knock**: Analog resonanssignal (knock sensor). 64 ADC-læsninger → peak-to-peak amplitude 0–100%.
-- **OLED**: SSD1306 128×64 display. Auto-detekteret via I2C scan på adresse 0x3C ved boot.
+- **OLED**: SSD1306 128×64 display. **Deaktiveret** – Wire.begin() crasher på ESP32-C5 eco2 pga. arduino-esp32 3.3.8 bruger legacy I2C driver API der ikke matcher C5 eco2 hardware. `oledOk = false` hardkodet. TODO: genaktiver når arduino-esp32 har native ESP32-C5 I2C HAL.
 
 ## Auto-detektion af valgfrie sensorer
 | Sensor | Betingelse for "aktiv" |
@@ -52,7 +52,7 @@ IGT / INJ / IAC (12V): SIG ---[33k]---+--- GPIO
 | INJ    | Puls registreret inden for 2 sekunder |
 | IAC    | Puls registreret inden for 2 sekunder |
 | Knock  | Altid samplet; niveau vises som 0–100% amplitude |
-| OLED   | I2C scan 0x3C ved boot; display aktivt hvis fundet |
+| OLED   | **Deaktiveret** – `oledOk = false` hardkodet pga. ESP32-C5 I2C bug |
 
 Web-dashboardet viser kun sensor-kort når data er validt. Skjules automatisk ved frakobling.
 
@@ -175,23 +175,31 @@ Første linje i ny fil er metadata-kommentar:
 # OEM Ignition Logger | offset=215.0 | MAP Bosch=0.50V–4.50V 10–105kPa
 ```
 
-## Biblioteker
+## Platform & Biblioteker
+
+**Platform**: pioarduino-fork af espressif32 bruges fordi den officielle PlatformIO espressif32 (v7.x) mangler ESP32-C5 support. Konfigureret i `platformio.ini`:
 ```
-esphome/ESPAsyncWebServer-esphome @ ^3.3.0
-esphome/AsyncTCP-esphome @ ^2.1.0
+platform = https://github.com/pioarduino/platform-espressif32/releases/download/stable/platform-espressif32.zip
+board     = esp32-c5-devkitc-1
+framework = arduino
+```
+
+**Biblioteker** (`lib_deps`):
+```
+mathieucarbou/ESPAsyncWebServer @ ^3.3.0
+mathieucarbou/AsyncTCP @ ^3.3.0
 olikraus/U8g2 @ ^2.35.30
 ```
-Esphome-forks bruges frem for me-no-dev da de er aktivt vedligeholdt og kompatible med
-nyere ESP-IDF. OTA via Arduino `Update`-biblioteket (del af framework). DNS via `DNSServer`
-(del af framework).
+mathieucarbou-forks bruges frem for me-no-dev / esphome-forks da de er aktivt vedligeholdt.
+OTA via Arduino `Update`-biblioteket (del af framework). DNS via `DNSServer` (del af framework).
 
 ## Partition tabel (min_spiffs.csv)
 | Navn    | Type | Offset     | Størrelse |
 |---------|------|------------|-----------|
 | nvs     | data | 0x9000     | 20 KB     |
 | otadata | data | 0xe000     | 8 KB      |
-| app0    | app  | 0x10000    | 1875 KB   |
-| app1    | app  | 0x1F0000   | 1875 KB   |
+| app0    | app  | 0x10000    | 1872 KB (0x1D4000) |
+| app1    | app  | 0x1F0000   | 1872 KB (0x1D4000) |
 | spiffs  | data | 0x3D0000   | 192 KB    |
 
 Web Tools manifest-offsets (decimal) – ESP32-C5:
@@ -265,6 +273,12 @@ GitHub Actions workflow'en deployer automatisk `docs/` ved hvert push til main.
 Web flasher er live på:
 `https://joachimth.github.io/esp32-ecu-reversing-for-speeduino/`
 
+## Kendte begrænsninger / Bugs
+
+| Problem | Detalje | Status |
+|---------|---------|--------|
+| OLED deaktiveret | `Wire.begin()` crasher ESP32-C5 eco2 pga. legacy `i2c_driver_install()` API i arduino-esp32 3.3.8. `oledOk = false` hardkodet i `setup()`. | Afventer upstream fix |
+
 ---
 
 ## TODO / Roadmap
@@ -288,21 +302,22 @@ Web flasher er live på:
 - [x] Dwell i grader (°) beregnet fra dwell_ms × RPM, vist i dwell-kort)
 - [x] Skærmvågen via Wake Lock API (forhindrer telefon i at slukke under monitorering)
 - [x] Konfigurerbar kalibreringsvinkel (POST /cal angle=X, default 10° BTDC)
-- [x] Knock sensor (GPIO33, peak-to-peak amplitude 64 ADC-reads, tærskel NVS-gemt, dashboard bar)
-- [x] OLED SSD1306 128×64 (GPIO21/22 I2C, auto-detekteret, RPM/ADV/DWL/MAP/INJ/IAC + tand-bar)
+- [x] Knock sensor (GPIO3/ADC1_CH3, peak-to-peak amplitude 64 ADC-reads, tærskel NVS-gemt, dashboard bar)
+- [~] OLED SSD1306 128×64 (GPIO21=SDA/GPIO20=SCL) – kode implementeret, men **deaktiveret** pga. ESP32-C5 I2C HAL bug i arduino-esp32 3.3.8
 - [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
 
 ### v2 – OLED standalone display
-- [x] SSD1306 128x64 OLED via I2C (GPIO21=SDA, GPIO20=SCL) – auto-detekteret ved boot
-- [x] Live gauge ved bilen uden PC/telefon:
+> **Status**: Kode implementeret, men OLED er p.t. deaktiveret (`oledOk = false`) pga. ESP32-C5 I2C HAL bug i arduino-esp32 3.3.8. Afventer native C5 I2C support.
+- [~] SSD1306 128x64 OLED via I2C (GPIO21=SDA, GPIO20=SCL) – kode klar, hardware ikke aktiv
+- [~] Live gauge ved bilen uden PC/telefon:
   ```
   RPM: 875   ADV: 10.1°
   DWL: 3.0ms SYNC OK
   MAP: 98kPa INJ: 2.3ms
   [===========] T20
   ```
-- [x] Tand-bar (0–360° position vist som horisontal bar nederst)
-- [x] Knock indikator (lille bar øverst til højre når level > 5%)
+- [~] Tand-bar (0–360° position vist som horisontal bar nederst)
+- [~] Knock indikator (lille bar øverst til højre når level > 5%)
 - [ ] Kalibrerings-menu på knap
 
 ### v3 – Speeduino integration
