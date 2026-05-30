@@ -225,8 +225,16 @@ docs/
   manifest.json         ESP Web Tools manifest → releases/latest
 
 .github/workflows/
-  build.yml             CI: 3 jobs → build / deploy-pages / release (på tag)
+  build.yml             CI: 4 jobs → build / deploy-pages / auto-release (main) / release (tag)
 ```
+
+`build.yml` jobs (alle binaries bygges med PlatformIO env `esp32c5`):
+| Job            | Trigger                     | Funktion                                                                 |
+|----------------|-----------------------------|--------------------------------------------------------------------------|
+| `build`        | push main, tag `v*`, manuel | Byg firmware + LittleFS, saml binaries, upload som artifact (90 dage)     |
+| `deploy-pages` | efter `build`               | Bundl `docs/` + binaries → deploy til GitHub Pages (web flasher)          |
+| `auto-release` | push til `main`             | Slet+genskab `latest` release med friske binaries (Octokit + ncipollo)    |
+| `release`      | tag-push `v*`               | Navngivet release med auto-genereret changelog                           |
 
 ## Build & Flash (lokal)
 ```bash
@@ -260,11 +268,14 @@ Alle UI-sektioner, konfigurationspaneler og knapper fungerer visuelt (API-kald e
 Nyttig til UI-udvikling, præsentation og screenshots uden bil eller hardware.
 
 ## Release procedure (web flash)
+Hvert push til `main` kører `auto-release`-jobbet, der automatisk genopbygger
+`latest`-releasen med friske binaries – web flasheren peger altid på `latest`.
+En navngivet release med changelog laves ved tag-push:
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
-# GitHub Actions bygger og opretter release med alle binaries
-# Web flasher bruger automatisk "latest" release
+# GitHub Actions bygger og opretter navngivet release (job: release) med alle binaries
+# Web flasher bruger fortsat "latest" (opdateret af auto-release ved hvert main-push)
 ```
 
 ## GitHub Pages (én gang)
