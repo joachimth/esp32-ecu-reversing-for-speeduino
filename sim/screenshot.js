@@ -1,4 +1,4 @@
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium } = require('playwright');
 const path = require('path');
 
 (async () => {
@@ -16,6 +16,8 @@ const path = require('path');
   const desktop = await browser.newContext({ viewport: { width: 620, height: 900 } });
   const dPage = await desktop.newPage();
   await dPage.goto('file://' + path.resolve(__dirname, 'index.html'));
+  // Wait for sim pre-population (120 ticks × 200ms = 24s simulated, runs synchronously in JS so
+  // the page just needs a moment to paint after load. 800ms is enough but let's be safe.)
   await dPage.waitForTimeout(800);
   // Top section
   await dPage.screenshot({ path: path.resolve(__dirname, 'screenshot_top.png'), clip: { x: 0, y: 0, width: 620, height: 900 } });

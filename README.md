@@ -149,8 +149,9 @@ Forhåndsvis dashboardet uden hardware:
 # Åbn direkte i browser (ingen server nødvendig)
 open sim/index.html
 
-# Tag screenshots via Playwright
-node sim/screenshot.js
+# Tag screenshots via Playwright (første gang: installer)
+cd sim && npm install && npx playwright install chromium
+node screenshot.js
 ```
 
 `sim/index.html` er identisk med dashboardet, men WebSocket er erstattet af en JavaScript-generator

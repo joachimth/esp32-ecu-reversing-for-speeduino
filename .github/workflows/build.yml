@@ -53,6 +53,23 @@ jobs:
           cp "$BOOT_APP" release/boot_app0.bin
           echo "=== release/ ===" && ls -lh release/
 
+      - name: Stamp manifest.json with build version
+        run: |
+          # Use git tag if this is a tag push, otherwise use short SHA
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="$(git rev-parse --short HEAD)"
+          fi
+          # Inject version into docs/manifest.json so esp-web-tools can show "new version available"
+          python3 -c "
+          import json, sys
+          with open('docs/manifest.json') as f: m = json.load(f)
+          m['version'] = sys.argv[1]
+          with open('docs/manifest.json', 'w') as f: json.dump(m, f, indent=2)
+          print('manifest version set to', sys.argv[1])
+          " "$VERSION"
+
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v6
         with:
@@ -79,6 +96,21 @@ jobs:
         with:
           name: ignition-logger-firmware
           path: firmware-bins/
+
+      - name: Stamp manifest.json with build version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="$(git rev-parse --short HEAD)"
+          fi
+          python3 -c "
+          import json, sys
+          with open('docs/manifest.json') as f: m = json.load(f)
+          m['version'] = sys.argv[1]
+          with open('docs/manifest.json', 'w') as f: json.dump(m, f, indent=2)
+          print('manifest version set to', sys.argv[1])
+          " "$VERSION"
 
       - name: Bundle docs + firmware til Pages
         run: |

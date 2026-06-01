@@ -1,0 +1,12 @@
+{
+  "name": "ignition-logger-sim",
+  "private": true,
+  "description": "Screenshot tooling for the OEM Ignition Logger simulator",
+  "scripts": {
+    "screenshot": "node screenshot.js",
+    "install-browsers": "npx playwright install chromium"
+  },
+  "devDependencies": {
+    "playwright": "^1.40.0"
+  }
+}

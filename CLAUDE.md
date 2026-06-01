@@ -219,6 +219,7 @@ firmware/
 sim/
   index.html            simuleret dashboard – ingen ESP32 nødvendig (åbn direkte i browser)
   screenshot.js         Playwright-script til automatiske screenshots af dashboardet
+  package.json          devDependencies: playwright (kør `npm install` før screenshot.js)
 
 docs/
   index.html            web flasher (GitHub Pages, ESP Web Tools)
@@ -250,8 +251,9 @@ pio device monitor              # serial monitor 115200 baud
 # Åbn dashboardet direkte i browser (ingen server nødvendig)
 open sim/index.html
 
-# Tag screenshots automatisk med Playwright
-node sim/screenshot.js
+# Tag screenshots automatisk med Playwright (første gang: installer afhængigheder)
+cd sim && npm install && npx playwright install chromium
+node screenshot.js
 # → gemmer: screenshot_top.png, screenshot_bottom.png, screenshot_mobile.png, screenshot_full.png
 ```
 
@@ -289,6 +291,9 @@ Web flasher er live på:
 | Problem | Detalje | Status |
 |---------|---------|--------|
 | OLED deaktiveret | `Wire.begin()` crasher ESP32-C5 eco2 pga. legacy `i2c_driver_install()` API i arduino-esp32 3.3.8. `oledOk = false` hardkodet i `setup()`. | Afventer upstream fix |
+| ~~IAC duty% forkert~~ | ~~`iacISR()` målte edge-to-edge (dvs. low-time), ikke rising-to-rising period. Duty% var kun korrekt ved 50% duty.~~ | **Fikset** – tilføjet `lastIacRiseUs` |
+| ~~Sync-flag ryddes ikke~~ | ~~`synced` sættes aldrig `false` igen efter signaltab. Sync-kort viste "OK" og CAL-knap forblev aktiv ved RPM=0.~~ | **Fikset** – `sync=false` i stale-check |
+| ~~CAL `delay(1000)`~~ | ~~Tryk på CAL-knap blokerede main loop i 1 sek (WebSocket, DNS, serial).~~ | **Fikset** – non-blocking debounce |
 
 ---
 
@@ -315,6 +320,14 @@ Web flasher er live på:
 - [x] Konfigurerbar kalibreringsvinkel (POST /cal angle=X, default 10° BTDC)
 - [x] Knock sensor (GPIO3/ADC1_CH3, peak-to-peak amplitude 64 ADC-reads, tærskel NVS-gemt, dashboard bar)
 - [~] OLED SSD1306 128×64 (GPIO21=SDA/GPIO20=SCL) – kode implementeret, men **deaktiveret** pga. ESP32-C5 I2C HAL bug i arduino-esp32 3.3.8
+- [x] RPM progress bar (3-farvet grøn/amber/rød bar under RPM-tallet op til 7000)
+- [x] Farvekodet Advance-værdi (blå/grøn/orange/amber/rød efter tændings-zone)
+- [x] Optagelses-indikator (pulserende rød prik i header ved aktiv logning)
+- [x] Knock-kort flash animation ved detektion
+- [x] Intet-signal banner med pin-vejledning (vises ved RPM=0 + sync=false)
+- [x] Flash-plads visuel statusbar (LittleFS fri/brugt)
+- [x] CSV download-filnavn inkl. dato (ignlog_YYYY-MM-DD.csv)
+- [x] Canvas resize handler (grafer tegner korrekt efter browser/mobil rotation)
 - [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
 
 ### v2 – OLED standalone display
