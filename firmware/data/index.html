@@ -403,7 +403,7 @@ function exportScatter(){
   let csv='rpm,adv_btdc,map_kpa\n'+scData.map(p=>p.r.toFixed(0)+','+p.a.toFixed(2)+','+(p.m!=null?p.m.toFixed(1):'')).join('\n');
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download='engine_curve.csv';a.click();
+  a.download='engine_curve_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
 }
 function drawScatter(){
   const cv=$('scatter');
