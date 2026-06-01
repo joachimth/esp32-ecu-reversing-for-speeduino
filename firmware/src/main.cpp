@@ -55,6 +55,7 @@ volatile uint32_t iacRiseUs     = 0;
 volatile float    iacHighUs     = 1.0f;
 volatile float    iacPeriodUs   = 0.0f;
 volatile uint32_t lastIacEdgeUs = 0;
+volatile uint32_t lastIacRiseUs = 0;  // rising-to-rising period tracking (separate from lastIacEdgeUs)
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 float  calibOffset  = 215.0f;
@@ -122,9 +123,14 @@ void IRAM_ATTR iacISR()
 {
     uint32_t now = micros();
     if (digitalRead(PIN_IAC)) {
-        if (lastIacEdgeUs) iacPeriodUs = now - lastIacEdgeUs;
+        // Rising edge: measure period rising-to-rising (not edge-to-edge)
+        if (lastIacRiseUs) iacPeriodUs = now - lastIacRiseUs;
+        lastIacRiseUs = now;
         iacRiseUs = now;
-    } else { iacHighUs = now - iacRiseUs; }
+    } else {
+        // Falling edge: high-time = time since rising edge
+        iacHighUs = now - iacRiseUs;
+    }
     lastIacEdgeUs = now;
 }
 
@@ -230,7 +236,7 @@ static void computeValues(float& rpm, float& adv, float& dwell,
     uint32_t dt = micros() - lastToothUs;
     dwell       = dwellMs; sync = synced;
     interrupts();
-    if (tp==0 || dt/tp>3) { frac=0; adv=0; rpm=0; return; }
+    if (tp==0 || dt/tp>3) { frac=0; adv=0; rpm=0; sync=false; return; }  // also clear sync when signal is stale
     frac = (float)dt/tp; if (frac>1.0f) frac=1.0f;
     adv  = calibOffset - (tooth*10.0f + frac*10.0f);
     rpm  = 60000000.0f / (tp*36.0f);
@@ -620,11 +626,22 @@ void loop()
         ws.cleanupClients();
     }
 
-    if (!digitalRead(PIN_CAL)) {
-        noInterrupts(); int tc=toothCount; interrupts();
-        calibOffset = tc*10.0f + 10.0f;
-        prefs.putFloat("offset", calibOffset);
-        Serial.printf("CAL: offset=%.1f\n", calibOffset);
-        delay(1000);
+    // Non-blocking CAL button debounce (50 ms debounce, max 3 s hold)
+    // Old code used delay(1000) which blocked WebSocket, DNS, and serial for 1 second.
+    {
+        static uint32_t calPressedAt = 0;
+        bool calDown = !digitalRead(PIN_CAL);
+        if (calDown && !calPressedAt) {
+            calPressedAt = millis();
+        } else if (!calDown && calPressedAt) {
+            uint32_t held = millis() - calPressedAt;
+            if (held > 50 && held < 3000) {
+                noInterrupts(); int tc = toothCount; interrupts();
+                calibOffset = tc * 10.0f + 10.0f;
+                prefs.putFloat("offset", calibOffset);
+                Serial.printf("CAL: offset=%.1f\n", calibOffset);
+            }
+            calPressedAt = 0;
+        }
     }
 }

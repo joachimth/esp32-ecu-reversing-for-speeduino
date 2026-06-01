@@ -69,6 +69,16 @@ footer a:hover{color:#888}
   padding:6px 14px;font-size:.72rem;color:#4caf50;margin-bottom:10px;
   width:100%;max-width:580px;text-align:center}
 @media(max-width:360px){.val{font-size:1.9rem}}
+/* ── RPM progress bar ── */
+.rpm-bg{height:3px;background:#1e1e1e;border-radius:2px;overflow:hidden;margin:5px 0 4px}
+.rpm-bar{height:100%;width:0%;background:linear-gradient(90deg,#4caf50 0%,#ffb347 65%,#f44336 90%);border-radius:2px;transition:width .15s}
+/* ── Recording indicator ── */
+@keyframes rec-pulse{0%,100%{opacity:1}50%{opacity:.2}}
+.rec-dot{width:8px;height:8px;border-radius:50%;background:#f44336;display:none;flex-shrink:0}
+.rec-dot.on{display:inline-block;animation:rec-pulse .9s infinite}
+/* ── Knock detection flash ── */
+@keyframes knock-flash{0%{background:#3a1010;border-color:#f44336}100%{background:#161616;border-color:#222}}
+.card.knocked{animation:knock-flash .6s ease-out forwards}
 </style>
 </head>
 <body>
@@ -77,6 +87,7 @@ footer a:hover{color:#888}
   <h1>Ignition Logger</h1>
   <div class="conn">
     <button class="btn btn-s" style="font-size:.68rem;padding:3px 8px" onclick="resetStats()" title="Nulstil min/max">↺</button>
+    <span id="rec-dot" class="rec-dot" title="Optager"></span>
     <span id="status">Forbinder...</span><span id="dot"></span>
   </div>
 </header>
@@ -84,7 +95,7 @@ footer a:hover{color:#888}
 <div class="sim-banner">⚡ SIMULERINGSTILSTAND – ingen ESP32 tilsluttet</div>
 
 <div class="grid">
-  <div class="card"><label>RPM</label><div class="val" id="rpm">—</div><div class="unit">omdrejninger/min</div><div class="stats" id="st-rpm"></div></div>
+  <div class="card"><label>RPM</label><div class="val" id="rpm">—</div><div class="rpm-bg"><div class="rpm-bar" id="rpm-bar"></div></div><div class="unit">omdrejninger/min</div><div class="stats" id="st-rpm"></div></div>
   <div class="card"><label>Advance</label><div class="val" id="adv">—</div><div class="unit">° BTDC</div><div class="stats" id="st-adv"></div></div>
   <div class="card"><label>Dwell</label><div class="val" id="dwell">—</div><div class="unit">ms · <span id="dwell-deg" style="color:#555">—°</span></div><div class="stats" id="st-dwell"></div></div>
   <div class="card sync"><label>Sync</label><div class="val" id="sync">—</div><div class="unit">missing tooth lock</div></div>
@@ -165,7 +176,11 @@ footer a:hover{color:#888}
     </div>
     <div class="row" style="margin-top:8px">
       <span class="lbl" id="log-info">0 linjer · 0 KB</span>
-      <span class="lbl" id="fs-info" style="margin-left:8px"></span>
+    </div>
+    <div class="row" style="margin-top:6px;align-items:center;gap:8px">
+      <span class="lbl" style="min-width:40px;flex-shrink:0">Flash</span>
+      <div class="bar-bg" style="flex:1"><div class="bar" id="fs-bar" style="background:#64b5f6;transition:width .5s"></div></div>
+      <span class="lbl" id="fs-info" style="white-space:nowrap;min-width:60px;text-align:right"></span>
     </div>
     <p class="hint">Data gemmes på flash og overlever genstart. Maks. ~3000 linjer (≈10 min @ 5 Hz).</p>
   </div>
@@ -536,7 +551,9 @@ function simTick() {
 
   // Apply same logic as ws.onmessage in original
   $('rpm').textContent=d.r.toFixed(0);
+  $('rpm-bar').style.width=Math.min(d.r/7000*100,100)+'%';
   $('adv').textContent=d.a.toFixed(1);
+  $('adv').style.color=d.a<0?'#64b5f6':d.a<12?'#81c784':d.a<28?'#ff8c00':d.a<35?'#ffb347':'#ef5350';
   $('dwell').textContent=d.d.toFixed(2);
   if(d.r>0) $('dwell-deg').textContent=(d.d*d.r/166.67).toFixed(1)+'°';
   isSynced=d.s===1;
@@ -553,6 +570,7 @@ function simTick() {
   $('bar').style.width=Math.min(d.t/35*100,100)+'%';
   $('tooth-val').textContent='Tand '+d.t+'.'+String(d.f).padStart(2,'0')+' / 35';
   if(d.sc!==undefined)$('sync-count').textContent='syncs: '+d.sc;
+  $('rec-dot').classList.toggle('on',d.la===1);
   $('log-info').textContent=d.lc+' linjer · '+fmtBytes(d.lb);
   if(d.r>0){mmUpdate('rpm',d.r);mmShow('st-rpm','rpm',0);}
   mmUpdate('adv',d.a);mmShow('st-adv','adv',1);
@@ -565,6 +583,7 @@ function simTick() {
     const exc=d.k>d.kt;
     $('knock-bar').style.width=Math.min(d.k,100)+'%';
     $('knock-bar').style.background=exc?'#f44336':'linear-gradient(90deg,#4caf50,#ffb347)';
+    if(exc){const kc=$('knock-card');kc.classList.remove('knocked');void kc.offsetWidth;kc.classList.add('knocked');}
     $('knock-thr-disp').textContent=d.kt;
     $('knock-kc').textContent=d.kc;
     if($('knock-thr').dataset.user!=='1')$('knock-thr').value=d.kt;
@@ -575,9 +594,13 @@ function simTick() {
   maybeDrawScatter();
 }
 
+// Resize handler
+window.addEventListener('resize',()=>{ redraw(); if($('scb').style.display!=='none') drawScatter(); });
+
 // Populate status + wifi config with mock data
 $('cal-val').value = 215;
-$('fs-info').textContent = 'Ledig: 156 KB / 192 KB';
+$('fs-bar').style.width = '19%';
+$('fs-info').textContent = '156 KB fri';
 $('d-uptime').textContent = '00m 00s';
 $('d-heap').textContent = '198 KB';
 $('d-clients').textContent = '1 forbundet';

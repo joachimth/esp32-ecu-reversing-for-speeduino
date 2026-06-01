@@ -65,6 +65,20 @@ footer{margin-top:12px;font-size:.68rem;color:#2a2a2a}
 footer a{color:#444;text-decoration:none}
 footer a:hover{color:#888}
 @media(max-width:360px){.val{font-size:1.9rem}}
+/* ── RPM progress bar ── */
+.rpm-bg{height:3px;background:#1e1e1e;border-radius:2px;overflow:hidden;margin:5px 0 4px}
+.rpm-bar{height:100%;width:0%;background:linear-gradient(90deg,#4caf50 0%,#ffb347 65%,#f44336 90%);border-radius:2px;transition:width .15s}
+/* ── Recording indicator ── */
+@keyframes rec-pulse{0%,100%{opacity:1}50%{opacity:.2}}
+.rec-dot{width:8px;height:8px;border-radius:50%;background:#f44336;display:none;flex-shrink:0}
+.rec-dot.on{display:inline-block;animation:rec-pulse .9s infinite}
+/* ── Knock detection flash ── */
+@keyframes knock-flash{0%{background:#3a1010;border-color:#f44336}100%{background:#161616;border-color:#222}}
+.card.knocked{animation:knock-flash .6s ease-out forwards}
+/* ── No-signal banner ── */
+.no-sig{width:100%;max-width:580px;background:#1a0e0e;border:1px solid #3a1c1c;border-radius:8px;
+  padding:9px 14px;margin-bottom:8px;display:flex;align-items:center;gap:8px;font-size:.8rem;color:#e57373}
+.no-sig-dot{width:7px;height:7px;border-radius:50%;background:#e57373;flex-shrink:0;animation:rec-pulse 1.5s infinite}
 </style>
 </head>
 <body>
@@ -73,12 +87,15 @@ footer a:hover{color:#888}
   <h1>Ignition Logger</h1>
   <div class="conn">
     <button class="btn btn-s" style="font-size:.68rem;padding:3px 8px" onclick="resetStats()" title="Nulstil min/max">↺</button>
+    <span id="rec-dot" class="rec-dot" title="Optager"></span>
     <span id="status">Forbinder...</span><span id="dot"></span>
   </div>
 </header>
 
+<div id="no-sig" class="no-sig" style="display:none"><span class="no-sig-dot"></span> Intet signal – tjek NE (GPIO6) og IGT (GPIO5) forbindelserne</div>
+
 <div class="grid">
-  <div class="card"><label>RPM</label><div class="val" id="rpm">—</div><div class="unit">omdrejninger/min</div><div class="stats" id="st-rpm"></div></div>
+  <div class="card"><label>RPM</label><div class="val" id="rpm">—</div><div class="rpm-bg"><div class="rpm-bar" id="rpm-bar"></div></div><div class="unit">omdrejninger/min</div><div class="stats" id="st-rpm"></div></div>
   <div class="card"><label>Advance</label><div class="val" id="adv">—</div><div class="unit">° BTDC</div><div class="stats" id="st-adv"></div></div>
   <div class="card"><label>Dwell</label><div class="val" id="dwell">—</div><div class="unit">ms · <span id="dwell-deg" style="color:#555">—°</span></div><div class="stats" id="st-dwell"></div></div>
   <div class="card sync"><label>Sync</label><div class="val" id="sync">—</div><div class="unit">missing tooth lock</div></div>
@@ -155,11 +172,15 @@ footer a:hover{color:#888}
     <div class="row">
       <button class="btn btn-g" id="log-btn" onclick="toggleLog()">▶ Start</button>
       <button class="btn btn-s" onclick="clearLog()">Ryd</button>
-      <a class="btn btn-dl" href="/log.csv" download="ignlog.csv">⬇ CSV</a>
+      <a class="btn btn-dl" href="/log.csv" onclick="this.download='ignlog_'+new Date().toISOString().slice(0,10)+'.csv'">⬇ CSV</a>
     </div>
     <div class="row" style="margin-top:8px">
       <span class="lbl" id="log-info">0 linjer · 0 KB</span>
-      <span class="lbl" id="fs-info" style="margin-left:8px"></span>
+    </div>
+    <div class="row" style="margin-top:6px;align-items:center;gap:8px">
+      <span class="lbl" style="min-width:40px;flex-shrink:0">Flash</span>
+      <div class="bar-bg" style="flex:1"><div class="bar" id="fs-bar" style="background:#64b5f6;transition:width .5s"></div></div>
+      <span class="lbl" id="fs-info" style="white-space:nowrap;min-width:60px;text-align:right"></span>
     </div>
     <p class="hint">Data gemmes på flash og overlever genstart. Maks. ~3000 linjer (≈10 min @ 5 Hz).</p>
   </div>
@@ -488,13 +509,18 @@ function connect(){
   ws.onmessage=e=>{
     let d;try{d=JSON.parse(e.data);}catch{return;}
     $('rpm').textContent=d.r.toFixed(0);
+    $('rpm-bar').style.width=Math.min(d.r/7000*100,100)+'%';
     $('adv').textContent=d.a.toFixed(1);
+    // Color-code advance: blue=retarded, green=normal, orange=high, red=very high
+    $('adv').style.color=d.a<0?'#64b5f6':d.a<12?'#81c784':d.a<28?'#ff8c00':d.a<35?'#ffb347':'#ef5350';
     $('dwell').textContent=d.d.toFixed(2);
     if(d.r>0)$('dwell-deg').textContent=(d.d*d.r/166.67).toFixed(1)+'°';
     else $('dwell-deg').textContent='—°';
     isSynced=d.s===1;
     const se=$('sync');se.textContent=isSynced?'OK':'NEJ';se.className='val '+(isSynced?'ok':'nok');
     $('cal-btn').disabled=!isSynced;$('cal-btn').classList.toggle('ok',isSynced);
+    // No-signal banner: show when not synced and RPM=0
+    $('no-sig').style.display=(d.s===0&&d.r<10)?'flex':'none';
     if(d.mv!==undefined){_mapVLive=d.mv;$('map-v-live').textContent=d.mv.toFixed(3);}
     if(d.m>=0){showOpt('map',true);$('map').textContent=d.m.toFixed(1);$('cm').style.display='';}
     else{showOpt('map',false);$('cm').style.display='none';}
@@ -509,6 +535,7 @@ function connect(){
     logRunning=d.la===1;
     $('log-btn').textContent=logRunning?'⏹ Stop':'▶ Start';
     $('log-btn').classList.toggle('on',logRunning);
+    $('rec-dot').classList.toggle('on',logRunning);
     $('log-info').textContent=d.lc+' linjer · '+fmtBytes(d.lb);
     if(d.r>0){mmUpdate('rpm',d.r);mmShow('st-rpm','rpm',0);}
     mmUpdate('adv',d.a);mmShow('st-adv','adv',1);
@@ -521,6 +548,7 @@ function connect(){
       const exc=d.k>d.kt;
       $('knock-bar').style.width=Math.min(d.k,100)+'%';
       $('knock-bar').style.background=exc?'#f44336':'linear-gradient(90deg,#4caf50,#ffb347)';
+      if(exc){const kc=$('knock-card');kc.classList.remove('knocked');void kc.offsetWidth;kc.classList.add('knocked');}
       $('knock-thr-disp').textContent=d.kt;
       $('knock-kc').textContent=d.kc;
       if($('knock-thr').dataset.user!=='1')$('knock-thr').value=d.kt;
@@ -619,7 +647,11 @@ function fmtUptime(s){
 function refreshStatus(){
   fetch('/status').then(r=>r.json()).then(d=>{
     $('cal-val').value = d.offset;
-    $('fs-info').textContent = 'Ledig: '+fmtBytes(d.fsFree)+' / '+fmtBytes(d.fsTotal);
+    if(d.fsTotal){
+      const used=d.fsTotal-d.fsFree;
+      $('fs-bar').style.width=Math.min(used/d.fsTotal*100,100)+'%';
+      $('fs-info').textContent=fmtBytes(d.fsFree)+' fri';
+    }
     if(d.staConnected) $('wifi-title').textContent='WiFi: '+d.staIP;
     $('d-uptime').textContent  = fmtUptime(d.uptime||0);
     $('d-heap').textContent    = fmtBytes(d.freeHeap||0);
@@ -651,6 +683,9 @@ fetch('/labels').then(r=>r.json()).then(d=>{
 }).catch(()=>{});
 
 connect();
+
+// Redraw charts on window resize
+window.addEventListener('resize',()=>{ redraw(); if($('scb').style.display!=='none') drawScatter(); });
 
 // Keep screen awake while monitoring
 let wakeLock=null;
