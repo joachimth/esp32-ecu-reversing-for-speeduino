@@ -35,6 +35,17 @@ jobs:
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
+      - name: Generate version.h
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="$(git rev-parse --short HEAD)"
+          fi
+          mkdir -p firmware/include
+          printf '#pragma once\n#define FIRMWARE_VERSION "%s"\n' "$VERSION" > firmware/include/version.h
+          echo "Generated version.h: $VERSION"
+
       - name: Build firmware
         run: cd firmware && pio run -e esp32c5
 

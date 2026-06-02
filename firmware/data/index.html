@@ -79,6 +79,19 @@ footer a:hover{color:#888}
 .no-sig{width:100%;max-width:580px;background:#1a0e0e;border:1px solid #3a1c1c;border-radius:8px;
   padding:9px 14px;margin-bottom:8px;display:flex;align-items:center;gap:8px;font-size:.8rem;color:#e57373}
 .no-sig-dot{width:7px;height:7px;border-radius:50%;background:#e57373;flex-shrink:0;animation:rec-pulse 1.5s infinite}
+/* ── OTA update banner ── */
+.ota-banner{width:100%;max-width:580px;border-radius:8px;padding:10px 14px;margin-bottom:8px;
+  display:none;align-items:center;gap:10px;font-size:.82rem}
+.ota-banner.avail{display:flex;background:#0e2338;border:1px solid #1a3a5a;color:#90caf9}
+.ota-banner.busy{display:flex;background:#1a1500;border:1px solid #3a3000;color:#ffe082}
+.ota-banner.done{display:flex;background:#0a1a0a;border:1px solid #1a3a1a;color:#a5d6a7}
+.ota-banner.err{display:flex;background:#1a0e0e;border:1px solid #3a1c1c;color:#ef9a9a}
+.ota-prog{flex:1;height:4px;background:#1e1e1e;border-radius:2px;overflow:hidden}
+.ota-prog-bar{height:100%;width:0%;background:#ffe082;border-radius:2px;transition:width .3s}
+.btn-ota{border:0;border-radius:6px;padding:4px 12px;cursor:pointer;font-size:.75rem;
+  font-family:inherit;background:#1a3a5a;color:#90caf9;white-space:nowrap}
+.btn-ota:hover{background:#1e4a6a}
+.btn-ota:disabled{background:#222;color:#444;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -91,6 +104,13 @@ footer a:hover{color:#888}
     <span id="status">Forbinder...</span><span id="dot"></span>
   </div>
 </header>
+
+<div id="ota-banner" class="ota-banner">
+  <span id="ota-msg" style="flex:1">Tjekker for opdatering...</span>
+  <div class="ota-prog" id="ota-prog-wrap" style="display:none"><div class="ota-prog-bar" id="ota-prog-bar"></div></div>
+  <button class="btn-ota" id="ota-act-btn" style="display:none" onclick="otaInstall()">Installer nu</button>
+  <button class="btn-ota" id="ota-dismiss" style="display:none;background:#1e1e1e;color:#555" onclick="otaDismiss()">×</button>
+</div>
 
 <div id="no-sig" class="no-sig" style="display:none"><span class="no-sig-dot"></span> Intet signal – tjek NE (GPIO6) og IGT (GPIO5) forbindelserne</div>
 
@@ -332,10 +352,21 @@ footer a:hover{color:#888}
     <div class="row"><span class="lbl" style="min-width:90px">AP klienter</span><span id="d-clients">—</span></div>
     <div class="row"><span class="lbl" style="min-width:90px">STA RSSI</span><span id="d-rssi">—</span></div>
     <div class="row"><span class="lbl" style="min-width:90px">Flash ledig</span><span id="d-fs">—</span></div>
+    <div class="row" style="margin-top:8px;border-top:1px solid #1e1e1e;padding-top:8px">
+      <span class="lbl" style="min-width:90px">Firmware</span>
+      <span id="d-fw-ver" style="color:#555;font-size:.8rem">—</span>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn btn-s" style="font-size:.7rem;padding:4px 10px" onclick="otaCheck()">Tjek for opdatering</button>
+      <label style="display:flex;align-items:center;gap:5px;font-size:.72rem;color:#555;cursor:pointer">
+        <input type="checkbox" id="ota-auto-chk" onchange="otaSetAuto(this.checked)" style="accent-color:#ff8c00">
+        Auto-opdatering
+      </label>
+    </div>
   </div>
 </div>
 
-<footer style="margin-top:12px"><a href="/update">OTA firmware &#8594;</a></footer>
+<footer style="margin-top:12px"><a href="/update">Manuel firmware upload &#8594;</a></footer>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -508,6 +539,8 @@ function connect(){
   ws.onclose=()=>{setConn(false);retryT=setTimeout(connect,2000);};
   ws.onmessage=e=>{
     let d;try{d=JSON.parse(e.data);}catch{return;}
+    // OTA-only broadcast (separate from main data frame)
+    if(d.ota!==undefined&&d.r===undefined){otaRender(d.ota,d.ota_pct,d.ota_ver,'');return;}
     $('rpm').textContent=d.r.toFixed(0);
     $('rpm-bar').style.width=Math.min(d.r/7000*100,100)+'%';
     $('adv').textContent=d.a.toFixed(1);
@@ -687,7 +720,82 @@ connect();
 // Redraw charts on window resize
 window.addEventListener('resize',()=>{ redraw(); if($('scb').style.display!=='none') drawScatter(); });
 
-// Keep screen awake while monitoring
+// ── OTA update ───────────────────────────────────────────────────────────────
+let _otaState = 0, _otaDismissed = false;
+
+function otaRender(state, pct, availVer, errMsg) {
+  const banner = $('ota-banner');
+  const msg    = $('ota-msg');
+  const prog   = $('ota-prog-wrap');
+  const bar    = $('ota-prog-bar');
+  const btn    = $('ota-act-btn');
+  const dim    = $('ota-dismiss');
+  _otaState = state;
+
+  banner.className = 'ota-banner';
+  prog.style.display = 'none';
+  btn.style.display = 'none';
+  dim.style.display = 'none';
+
+  if (state === 0) { banner.style.display = 'none'; return; }
+  if (state === 1) {
+    if (_otaDismissed) { banner.style.display = 'none'; return; }
+    banner.classList.add('busy');
+    msg.textContent = 'Tjekker for opdatering…';
+    return;
+  }
+  _otaDismissed = false;  // reset dismiss on new state
+  if (state === 2) {
+    banner.classList.add('avail');
+    msg.textContent = '🔔 Ny firmware klar: ' + availVer;
+    btn.style.display = '';
+    btn.textContent = 'Installer nu';
+    btn.disabled = false;
+    dim.style.display = '';
+    return;
+  }
+  if (state === 3) {
+    banner.classList.add('busy');
+    msg.textContent = 'Opdaterer firmware… enheden genstarter automatisk';
+    prog.style.display = '';
+    bar.style.width = pct + '%';
+    return;
+  }
+  if (state === 4) {
+    banner.classList.add('done');
+    msg.textContent = '✓ Opdatering fuldført – genstarter…';
+    return;
+  }
+  if (state === 5) {
+    banner.classList.add('err');
+    msg.textContent = '✗ OTA fejl: ' + (errMsg || 'ukendt');
+    dim.style.display = '';
+    return;
+  }
+}
+
+function otaCheck() { fetch('/ota/check', {method:'POST'}); }
+function otaInstall() {
+  if (!confirm('Opdater firmware nu?\nDashboardet mister forbindelsen i ~30 sek under opdatering.')) return;
+  fetch('/ota/update', {method:'POST'});
+}
+function otaDismiss() { _otaDismissed = true; $('ota-banner').style.display = 'none'; }
+function otaSetAuto(on) {
+  const fd = new FormData(); fd.append('auto', on ? '1' : '0');
+  fetch('/ota/config', {method:'POST', body:fd});
+}
+
+// Fetch OTA status on startup and whenever WS carries ota_state
+function refreshOtaStatus() {
+  fetch('/ota/status').then(r=>r.json()).then(d=>{
+    $('d-fw-ver').textContent = d.current || '—';
+    $('ota-auto-chk').checked = d.auto === 1;
+    otaRender(d.state, d.pct, d.available, d.error);
+  }).catch(()=>{});
+}
+refreshOtaStatus();
+
+// ── Keep screen awake while monitoring
 let wakeLock=null;
 async function keepAwake(){
   if('wakeLock' in navigator){

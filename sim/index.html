@@ -79,6 +79,18 @@ footer a:hover{color:#888}
 /* ── Knock detection flash ── */
 @keyframes knock-flash{0%{background:#3a1010;border-color:#f44336}100%{background:#161616;border-color:#222}}
 .card.knocked{animation:knock-flash .6s ease-out forwards}
+/* ── OTA update banner ── */
+.ota-banner{width:100%;max-width:580px;border-radius:8px;padding:10px 14px;margin-bottom:8px;
+  display:none;align-items:center;gap:10px;font-size:.82rem}
+.ota-banner.avail{display:flex;background:#0e2338;border:1px solid #1a3a5a;color:#90caf9}
+.ota-banner.busy{display:flex;background:#1a1500;border:1px solid #3a3000;color:#ffe082}
+.ota-banner.done{display:flex;background:#0a1a0a;border:1px solid #1a3a1a;color:#a5d6a7}
+.ota-banner.err{display:flex;background:#1a0e0e;border:1px solid #3a1c1c;color:#ef9a9a}
+.ota-prog{flex:1;height:4px;background:#1e1e1e;border-radius:2px;overflow:hidden}
+.ota-prog-bar{height:100%;width:0%;background:#ffe082;border-radius:2px;transition:width .3s}
+.btn-ota{border:0;border-radius:6px;padding:4px 12px;cursor:pointer;font-size:.75rem;
+  font-family:inherit;background:#1a3a5a;color:#90caf9;white-space:nowrap}
+.btn-ota:hover{background:#1e4a6a}
 </style>
 </head>
 <body>
@@ -93,6 +105,12 @@ footer a:hover{color:#888}
 </header>
 
 <div class="sim-banner">⚡ SIMULERINGSTILSTAND – ingen ESP32 tilsluttet</div>
+
+<div id="ota-banner" class="ota-banner avail" style="display:flex">
+  <span id="ota-msg" style="flex:1">🔔 Ny firmware klar: v2.0.0 (simuleret)</span>
+  <button class="btn-ota" onclick="alert('OTA ikke tilgængelig i simuleringstilstand')">Installer nu</button>
+  <button class="btn-ota" style="background:#1e1e1e;color:#555" onclick="$('ota-banner').style.display='none'">×</button>
+</div>
 
 <div class="grid">
   <div class="card"><label>RPM</label><div class="val" id="rpm">—</div><div class="rpm-bg"><div class="rpm-bar" id="rpm-bar"></div></div><div class="unit">omdrejninger/min</div><div class="stats" id="st-rpm"></div></div>
@@ -601,6 +619,8 @@ window.addEventListener('resize',()=>{ redraw(); if($('scb').style.display!=='no
 $('cal-val').value = 215;
 $('fs-bar').style.width = '19%';
 $('fs-info').textContent = '156 KB fri';
+if($('d-fw-ver'))$('d-fw-ver').textContent = 'dev (simuleret)';
+if($('ota-auto-chk'))$('ota-auto-chk').checked = true;
 $('d-uptime').textContent = '00m 00s';
 $('d-heap').textContent = '198 KB';
 $('d-clients').textContent = '1 forbundet';

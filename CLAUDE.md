@@ -133,8 +133,12 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 | `/log/stop`       | POST     | Stop logning                                                        |
 | `/log/clear`      | POST     | Slet /ignlog.csv og nulstil tæller                                  |
 | `/log.csv`        | GET      | Download /ignlog.csv direkte fra LittleFS                           |
-| `/update`         | GET      | OTA upload formular                                                 |
-| `/update`         | POST     | Modtager firmware.bin, flasher + genstarter                         |
+| `/update`         | GET      | OTA upload formular (manuel)                                        |
+| `/update`         | POST     | Modtager firmware.bin, flasher + genstarter (manuel)                |
+| `/ota/status`     | GET      | `{state, pct, current, available, auto, error}` auto-OTA status     |
+| `/ota/check`      | POST     | Tjek manifest.json for ny version nu (blokerende ~1-2 s)            |
+| `/ota/update`     | POST     | Download + flash ny firmware fra GitHub releases (blokerende)        |
+| `/ota/config`     | POST     | Sæt `auto=1/0` – aktivér/deaktivér automatisk OTA-check (NVS-gemt)  |
 
 ## WebSocket JSON-format
 ```json
@@ -328,6 +332,7 @@ Web flasher er live på:
 - [x] Flash-plads visuel statusbar (LittleFS fri/brugt)
 - [x] CSV download-filnavn inkl. dato (ignlog_YYYY-MM-DD.csv)
 - [x] Canvas resize handler (grafer tegner korrekt efter browser/mobil rotation)
+- [x] OTA auto-update: `version.h` stamped af CI, check hvert 6. time via manifest.json, download+flash fra GitHub releases, dashboard banner + progress
 - [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
 
 ### v2 – OLED standalone display

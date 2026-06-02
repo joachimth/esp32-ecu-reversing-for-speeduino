@@ -7,6 +7,9 @@
 #include <DNSServer.h>
 #include <Wire.h>
 #include <U8g2lib.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include "version.h"
 
 // ─── Pins (ESP32-C5-WROOM-1) ─────────────────────────────────────────────────
 // ADC1 pins (GPIO0-6) are reliable with WiFi active.
@@ -96,6 +99,26 @@ File        logFile;
 static int  logCount  = 0;
 static int  logBytes  = 0;
 static bool logActive = false;
+
+// ─── OTA auto-update ─────────────────────────────────────────────────────────
+// Manifest URL: stamped with version by CI, checked to detect new firmware.
+// Firmware URL: GitHub releases "latest" tag – always points to newest build.
+// Security note: setInsecure() skips TLS cert verification. Acceptable for
+// a LAN-only embedded device where firmware authenticity is ensured by the
+// GitHub release pipeline. For production with internet exposure, pin the
+// GitHub root CA instead.
+#define OTA_MANIFEST_URL \
+    "https://joachimth.github.io/esp32-ecu-reversing-for-speeduino/manifest.json"
+#define OTA_FIRMWARE_URL \
+    "https://github.com/joachimth/esp32-ecu-reversing-for-speeduino/releases/latest/download/firmware.bin"
+#define OTA_CHECK_INTERVAL_MS  (6UL * 3600000UL)  // 6 hours
+
+// States: 0=idle, 1=checking, 2=available, 3=updating, 4=done, 5=error
+static uint8_t  otaState       = 0;
+static uint8_t  otaProgress    = 0;   // 0–100 %
+static String   otaAvailVer    = "";
+static String   otaError       = "";
+static bool     otaAutoEnabled = true;  // can be toggled via /ota/config
 
 // ─── ISRs ────────────────────────────────────────────────────────────────────
 void IRAM_ATTR crankISR()
@@ -315,6 +338,129 @@ static void pushToClients()
     ws.textAll(buf);
 }
 
+// ─── OTA helpers ─────────────────────────────────────────────────────────────
+static void otaBroadcast()
+{
+    char buf[128];
+    snprintf(buf, sizeof(buf),
+        "{\"ota\":%d,\"ota_pct\":%d,\"ota_ver\":\"%s\"}",
+        (int)otaState, (int)otaProgress, otaAvailVer.c_str());
+    ws.textAll(buf);
+}
+
+// Returns true if a newer version is available. Blocking but fast (~1-2 s).
+static bool otaCheckAvailable()
+{
+    if (!staConnected) return false;
+    otaState = 1; otaError = ""; otaBroadcast();
+
+    WiFiClientSecure cli;
+    cli.setInsecure();       // see security note above
+    HTTPClient http;
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setTimeout(8000);
+
+    if (!http.begin(cli, OTA_MANIFEST_URL)) {
+        otaState = 5; otaError = "connect"; otaBroadcast(); return false;
+    }
+    int code = http.GET();
+    String body = (code == 200) ? http.getString() : "";
+    http.end();
+
+    if (code != 200) {
+        otaState = 5; otaError = "HTTP " + String(code); otaBroadcast(); return false;
+    }
+
+    // Minimal JSON parse: find "version":"xxx"
+    int vIdx = body.indexOf("\"version\"");
+    if (vIdx < 0) { otaState = 0; otaBroadcast(); return false; }
+    int q1 = body.indexOf('"', vIdx + 9);
+    int q2 = (q1 >= 0) ? body.indexOf('"', q1 + 1) : -1;
+    if (q1 < 0 || q2 < 0) { otaState = 0; otaBroadcast(); return false; }
+    String remoteVer = body.substring(q1 + 1, q2);
+
+    if (remoteVer.isEmpty() || remoteVer == FIRMWARE_VERSION) {
+        otaState = 0; otaBroadcast(); return false;   // already up to date
+    }
+
+    otaAvailVer = remoteVer;
+    otaState = 2; otaBroadcast();
+    Serial.printf("OTA: update available %s → %s\n", FIRMWARE_VERSION, remoteVer.c_str());
+    return true;
+}
+
+// Downloads firmware.bin from GitHub releases and flashes it. Blocking.
+// Notifies via WebSocket before starting so dashboard can show progress.
+static void otaPerformUpdate()
+{
+    if (!staConnected) { otaState = 5; otaError = "no wifi"; otaBroadcast(); return; }
+
+    // Notify all clients: update is starting, device will reboot
+    otaState = 3; otaProgress = 0; otaBroadcast();
+    ws.cleanupClients();
+    delay(300);  // let WS frame reach clients before we monopolise the CPU
+
+    Serial.printf("OTA: downloading %s\n", OTA_FIRMWARE_URL);
+
+    WiFiClientSecure cli;
+    cli.setInsecure();
+    HTTPClient http;
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setTimeout(60000);   // up to 60 s for binary download on slow hotspot
+
+    if (!http.begin(cli, OTA_FIRMWARE_URL)) {
+        otaState = 5; otaError = "connect"; otaBroadcast(); return;
+    }
+    int code = http.GET();
+    if (code != 200) {
+        http.end();
+        otaState = 5; otaError = "HTTP " + String(code); otaBroadcast(); return;
+    }
+
+    int totalLen = http.getSize();  // -1 if chunked
+    WiFiClient* stream = http.getStreamPtr();
+
+    if (!Update.begin(totalLen > 0 ? (size_t)totalLen : UPDATE_SIZE_UNKNOWN)) {
+        http.end();
+        otaState = 5; otaError = "begin: " + String(Update.errorString());
+        otaBroadcast(); return;
+    }
+
+    uint8_t  buf[1024];
+    int      written   = 0;
+    uint8_t  lastPct10 = 0;
+
+    while (http.connected()) {
+        size_t avail = stream->available();
+        if (avail) {
+            int n = stream->readBytes(buf, min((size_t)sizeof(buf), avail));
+            if (n > 0 && Update.write(buf, (size_t)n) != (size_t)n) {
+                Update.abort(); http.end();
+                otaState = 5; otaError = "write error"; otaBroadcast(); return;
+            }
+            written += n;
+            if (totalLen > 0) {
+                otaProgress = (uint8_t)(written * 100 / totalLen);
+                uint8_t p10 = otaProgress / 10;
+                if (p10 != lastPct10) { lastPct10 = p10; otaBroadcast(); }
+            }
+        } else {
+            if (totalLen > 0 && written >= totalLen) break;
+            delay(1);
+        }
+    }
+    http.end();
+
+    if (!Update.end(true)) {
+        otaState = 5; otaError = Update.errorString(); otaBroadcast(); return;
+    }
+
+    otaState = 4; otaProgress = 100; otaBroadcast();
+    Serial.printf("OTA: success (%d bytes) – rebooting in 2 s\n", written);
+    delay(2000);
+    ESP.restart();
+}
+
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup()
 {
@@ -342,7 +488,8 @@ void setup()
     lblMap      = prefs.getString("lbl_map", "MAP");
     lblInj      = prefs.getString("lbl_inj", "Injektor");
     lblIac      = prefs.getString("lbl_iac", "IAC");
-    knockThresh = (uint8_t)prefs.getUInt("knock_thr", 30);
+    knockThresh    = (uint8_t)prefs.getUInt("knock_thr", 30);
+    otaAutoEnabled = prefs.getBool("ota_auto", true);
 
     // OLED auto-detect disabled: Wire.begin() crashes on ESP32-C5 eco2 because
     // arduino-esp32 3.3.8 uses the legacy i2c_driver_install() API which accesses
@@ -577,6 +724,35 @@ void setup()
         req->send(200, "application/json", buf);
     });
 
+    // ── OTA auto-update endpoints ─────────────────────────────────────────────
+    server.on("/ota/status", HTTP_GET, [](AsyncWebServerRequest* req) {
+        char buf[192];
+        snprintf(buf, sizeof(buf),
+            "{\"state\":%d,\"pct\":%d,\"current\":\"%s\","
+            "\"available\":\"%s\",\"auto\":%d,\"error\":\"%s\"}",
+            (int)otaState, (int)otaProgress, FIRMWARE_VERSION,
+            otaAvailVer.c_str(), otaAutoEnabled ? 1 : 0, otaError.c_str());
+        req->send(200, "application/json", buf);
+    });
+    server.on("/ota/check", HTTP_POST, [](AsyncWebServerRequest* req) {
+        req->send(200, "text/plain", "OK");
+        otaCheckAvailable();  // blocking ~1-2 s
+    });
+    server.on("/ota/update", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (otaState == 3) { req->send(409, "text/plain", "already updating"); return; }
+        req->send(200, "text/plain", "OK");
+        otaPerformUpdate();   // blocking, device reboots if successful
+    });
+    server.on("/ota/config", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (req->hasParam("auto", true)) {
+            otaAutoEnabled = req->getParam("auto", true)->value() != "0";
+            prefs.putBool("ota_auto", otaAutoEnabled);
+        }
+        char buf[48];
+        snprintf(buf, sizeof(buf), "{\"auto\":%d}", otaAutoEnabled ? 1 : 0);
+        req->send(200, "application/json", buf);
+    });
+
     // ── Static files (after all specific handlers) ────────────────────────────
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
@@ -594,12 +770,29 @@ void loop()
 
     // WiFi STA reconnect
     static uint32_t lastWifiCheck = 0;
+    static bool     staPrevConnected = false;
     if (staSSID.length() > 0 && millis() - lastWifiCheck > 15000) {
         lastWifiCheck = millis();
         bool was = staConnected;
         staConnected = (WiFi.status() == WL_CONNECTED);
         if (!staConnected) WiFi.begin(staSSID.c_str(), staPass.c_str());
-        else if (!was) Serial.printf("STA: Forbundet. IP: %s\n", WiFi.localIP().toString().c_str());
+        else if (!was) {
+            Serial.printf("STA: Forbundet. IP: %s\n", WiFi.localIP().toString().c_str());
+            staPrevConnected = false;  // reset so first-connect check fires below
+        }
+    }
+
+    // OTA auto-check: once on first STA connect, then every 6 hours
+    static uint32_t lastOtaCheck = 0;
+    if (otaAutoEnabled && staConnected && otaState == 0) {
+        bool firstConnect = !staPrevConnected;
+        staPrevConnected = true;
+        bool timeToCheck = (lastOtaCheck == 0 && firstConnect) ||
+                           (millis() - lastOtaCheck > OTA_CHECK_INTERVAL_MS);
+        if (timeToCheck) {
+            lastOtaCheck = millis();
+            otaCheckAvailable();  // ~1-2 s blocking – acceptable at 6h interval
+        }
     }
 
     static uint32_t lastPrint = 0, lastWs = 0;
