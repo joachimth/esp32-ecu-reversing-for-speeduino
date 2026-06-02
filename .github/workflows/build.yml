@@ -89,7 +89,50 @@ jobs:
           retention-days: 90
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Job 2 – deploy docs/ + firmware-binaries til GitHub Pages
+# Job 2 – auto-screenshot via Playwright + commit til repo
+# Kører kun på push til main (ikke på tag-pushes) for at undgå dobbelt-commit.
+# Bruger bot-email så det ikke trigger en ny workflow-kørsel (GitHub ignorerer
+# commits fra actions@github.com i det meste af loop-detection).
+# ─────────────────────────────────────────────────────────────────────────────
+  screenshots:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: sim/package.json
+
+      - name: Install Playwright + Chromium
+        run: cd sim && npm ci && npx playwright install chromium --with-deps
+
+      - name: Generer screenshots
+        run: cd sim && node screenshot.js
+
+      - name: Commit screenshots hvis ændret
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sim/screenshot_*.png
+          if git diff --cached --quiet; then
+            echo "Ingen ændringer i screenshots - springer commit over"
+          else
+            git commit -m "chore: auto-update screenshots [skip ci]"
+            git push origin main
+          fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Job 3 – deploy docs/ + firmware-binaries til GitHub Pages
+# (kører parallelt med screenshots – ingen indbyrdes afhængighed)
 # manifest.json bruger relative stier (firmware/*.bin) → ingen CORS-problemer
 # ─────────────────────────────────────────────────────────────────────────────
   deploy-pages:

@@ -88,7 +88,10 @@ For at gemme data til analyse:
 2. Tryk **Stop log** → tryk **Download CSV**
 3. Åbn filen i Excel / Speeduino TunerStudio
 
-Firmware-opdateringer kan installeres trådløst via http://192.168.4.1/update (OTA).
+**Firmware-opdatering (OTA):** Enheden checker automatisk for nye versioner hver 6. time når den er på WiFi.
+Når en opdatering er klar vises et banner i dashboardet - tryk **Installer nu** og enheden opdaterer og genstarter selv (~30 sek).
+Manuel upload er også muligt via http://192.168.4.1/update.
+Auto-opdatering kan slås fra under Diagnostik i dashboardet.
 
 ---
 
@@ -134,28 +137,18 @@ RPM,ADV,DWELL,TOOTH,SYNC
 
 ## Web UI simulator (uden ESP32)
 
-Forhåndsvis dashboardet uden hardware:
+Forhåndsvis dashboardet uden hardware - åbn direkte i browseren:
+
+```bash
+open sim/index.html
+```
 
 <p align="center">
   <img src="sim/screenshot_top.png" width="48%" alt="Dashboard top – RPM, Advance, Dwell, MAP, Injektor, IAC">
   <img src="sim/screenshot_mobile.png" width="28%" alt="Dashboard mobil">
 </p>
 
-<p align="center">
-  <img src="sim/screenshot_bottom.png" width="48%" alt="Dashboard bund – grafer og scatter">
-</p>
-
-```bash
-# Åbn direkte i browser (ingen server nødvendig)
-open sim/index.html
-
-# Tag screenshots via Playwright (første gang: installer)
-cd sim && npm install && npx playwright install chromium
-node screenshot.js
-```
-
-`sim/index.html` er identisk med dashboardet, men WebSocket er erstattet af en JavaScript-generator
-der producerer realistiske motordata (RPM ~875, advance ~10°, MAP ~98 kPa, injektor, IAC, knock).
+Screenshots opdateres automatisk ved hvert CI-build. Se [`SCREENSHOTS.md`](SCREENSHOTS.md) for detaljer og manuel procedure.
 
 ## Byg lokalt (alternativt til Web Flasher)
 
