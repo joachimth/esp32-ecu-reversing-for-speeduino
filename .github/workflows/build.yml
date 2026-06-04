@@ -109,11 +109,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: sim/package.json
 
       - name: Install Playwright + Chromium
-        run: cd sim && npm ci && npx playwright install chromium --with-deps
+        run: cd sim && npm install && npx playwright install chromium --with-deps
 
       - name: Generer screenshots
         run: cd sim && node screenshot.js
