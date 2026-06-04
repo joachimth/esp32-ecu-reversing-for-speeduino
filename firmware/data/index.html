@@ -105,6 +105,8 @@ footer a:hover{color:#888}
   </div>
 </header>
 
+<div id="ota-install-confirm" style="display:none"></div>
+
 <div id="ota-banner" class="ota-banner">
   <span id="ota-msg" style="flex:1">Tjekker for opdatering...</span>
   <div class="ota-prog" id="ota-prog-wrap" style="display:none"><div class="ota-prog-bar" id="ota-prog-bar"></div></div>
@@ -194,6 +196,7 @@ footer a:hover{color:#888}
       <button class="btn btn-s" onclick="clearLog()">Ryd</button>
       <a class="btn btn-dl" href="/log.csv" onclick="this.download='ignlog_'+new Date().toISOString().slice(0,10)+'.csv'">⬇ CSV</a>
     </div>
+    <div id="log-confirm" style="display:none"></div>
     <div class="row" style="margin-top:8px">
       <span class="lbl" id="log-info">0 linjer · 0 KB</span>
     </div>
@@ -306,19 +309,34 @@ footer a:hover{color:#888}
     <button class="chev" id="chev-w" onclick="tog('wb','chev-w')">▼</button>
   </div>
   <div id="wb" style="display:none">
-    <div class="row" style="margin-bottom:8px">
-      <span class="msg" id="wifi-msg"></span>
-    </div>
-    <div class="row">
-      <input type="text" id="wifi-ssid" placeholder="Netværksnavn (SSID)">
-      <input type="password" id="wifi-pass" placeholder="Password">
-      <button class="btn btn-s" onclick="saveWifi()">Forbind</button>
-    </div>
-    <div class="row" style="margin-top:8px">
-      <button class="btn btn-s" id="wifi-clear" style="display:none" onclick="clearWifi()">Fjern forbindelse</button>
-    </div>
-    <p class="hint">ESP32 genstarter ved ændring. AP (192.168.4.1) er altid tilgængeligt.</p>
+  <div class="row" style="margin-bottom:8px">
+    <span class="msg" id="wifi-msg"></span>
   </div>
+  <div class="row">
+    <input type="text" id="wifi-ssid" placeholder="Netværksnavn (SSID)" autocomplete="off" autocorrect="off" autocapitalize="none">
+    <input type="password" id="wifi-pass" placeholder="Password" autocomplete="current-password">
+    <button class="btn btn-s" onclick="saveWifiAsk()">Forbind</button>
+  </div>
+  <!-- Inline bekræftelse – vises i stedet for confirm() dialog -->
+  <div id="wifi-confirm" style="display:none;margin-top:8px;background:#1a2a0a;border:1px solid #2a4a1a;border-radius:6px;padding:8px 12px;font-size:.8rem;color:#a5d6a7">
+    <span id="wifi-confirm-msg"></span>
+    <div style="margin-top:6px;display:flex;gap:8px">
+      <button class="btn btn-s" style="background:#2a4a1a;color:#a5d6a7;font-size:.72rem;padding:3px 10px" onclick="saveWifiDo()">Ja, forbind og genstart</button>
+      <button class="btn btn-s" style="background:#1e1e1e;color:#555;font-size:.72rem;padding:3px 10px" onclick="$('wifi-confirm').style.display='none'">Annuller</button>
+    </div>
+  </div>
+  <div id="wifi-clear-confirm" style="display:none;margin-top:8px;background:#1a0e0e;border:1px solid #3a1c1c;border-radius:6px;padding:8px 12px;font-size:.8rem;color:#ef9a9a">
+    Fjern WiFi-forbindelsen og genstart?
+    <div style="margin-top:6px;display:flex;gap:8px">
+      <button class="btn btn-s" style="background:#3a1c1c;color:#ef9a9a;font-size:.72rem;padding:3px 10px" onclick="clearWifiDo()">Ja, fjern og genstart</button>
+      <button class="btn btn-s" style="background:#1e1e1e;color:#555;font-size:.72rem;padding:3px 10px" onclick="$('wifi-clear-confirm').style.display='none'">Annuller</button>
+    </div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button class="btn btn-s" id="wifi-clear" style="display:none" onclick="clearWifiAsk()">Fjern forbindelse</button>
+  </div>
+  <p class="hint">ESP32 genstarter ved ændring. AP (192.168.4.1) er altid tilgængeligt.</p>
+</div>
 </div>
 
 <!-- Knock sensor konfiguration -->
@@ -597,7 +615,8 @@ function connect(){
 function toggleLog(){fetch(logRunning?'/log/stop':'/log/start',{method:'POST'});}
 function clearLog(){
   const n=$('log-info').textContent.split(' ')[0];
-  if(n==='0'||confirm('Slet '+n+' linjer fra flash?'))fetch('/log/clear',{method:'POST'});
+  if(n==='0'){fetch('/log/clear',{method:'POST'});return;}
+  inlineConfirm('log-confirm','Slet '+n+' linjer fra flash?',()=>fetch('/log/clear',{method:'POST'}));
 }
 
 // ── Calibration ──────────────────────────────────────────────────────────────
@@ -659,17 +678,49 @@ async function resetKnockCount(){
 }
 $('knock-thr').addEventListener('input',()=>$('knock-thr').dataset.user='1');
 
+// ── Inline confirmation helper (replaces all confirm() dialogs) ──────────────
+// Renders a yes/no banner inside element #id. Calls onConfirm() on yes.
+function inlineConfirm(id, msg, onConfirm) {
+  const el = $(id);
+  if (!el) return;
+  el.innerHTML =
+    '<div style="margin-top:8px;background:#1a1a0a;border:1px solid #3a3a1a;border-radius:6px;'+
+    'padding:8px 12px;font-size:.8rem;color:#ffe082">'+msg+
+    '<div style="margin-top:6px;display:flex;gap:8px">'+
+    '<button class="btn btn-s" style="background:#3a3000;color:#ffe082;font-size:.72rem;padding:3px 10px" '+
+    'id="'+id+'-yes">Ja, bekræft</button>'+
+    '<button class="btn btn-s" style="background:#1e1e1e;color:#555;font-size:.72rem;padding:3px 10px" '+
+    'id="'+id+'-no">Annuller</button>'+
+    '</div></div>';
+  el.style.display = '';
+  $(id+'-yes').onclick = () => { el.style.display='none'; el.innerHTML=''; onConfirm(); };
+  $(id+'-no').onclick  = () => { el.style.display='none'; el.innerHTML=''; };
+}
+
 // ── WiFi Station ─────────────────────────────────────────────────────────────
-async function saveWifi(){
+function saveWifiAsk(){
   const ssid=$('wifi-ssid').value.trim();
   if(!ssid){showMsg('wifi-msg','✗ SSID mangler',false);return;}
-  if(!confirm('Forbind til "'+ssid+'"?\nESP32 genstarter.'))return;
-  const fd=new FormData();fd.append('ssid',ssid);fd.append('pass',$('wifi-pass').value);
-  await fetch('/wifi/config',{method:'POST',body:fd});
+  $('wifi-confirm-msg').textContent='Forbind til "'+ssid+'" og genstart?';
+  $('wifi-confirm').style.display='';
+  $('wifi-clear-confirm').style.display='none';
 }
-async function clearWifi(){
-  if(!confirm('Fjern WiFi-forbindelse?\nESP32 genstarter.'))return;
+async function saveWifiDo(){
+  $('wifi-confirm').style.display='none';
+  const fd=new FormData();
+  fd.append('ssid',$('wifi-ssid').value.trim());
+  fd.append('pass',$('wifi-pass').value);
+  await fetch('/wifi/config',{method:'POST',body:fd});
+  showMsg('wifi-msg','✓ Gemmer – genstarter...',true);
+}
+function clearWifiAsk(){
+  $('wifi-clear-confirm').style.display='';
+  $('wifi-confirm').style.display='none';
+}
+async function clearWifiDo(){
+  $('wifi-clear-confirm').style.display='none';
   await fetch('/wifi/clear',{method:'POST'});
+  showMsg('wifi-msg','✓ Fjernet – genstarter...',true);
 }
 
 // ── Startup: hent status + WiFi config ───────────────────────────────────────
@@ -776,8 +827,7 @@ function otaRender(state, pct, availVer, errMsg) {
 
 function otaCheck() { fetch('/ota/check', {method:'POST'}); }
 function otaInstall() {
-  if (!confirm('Opdater firmware nu?\nDashboardet mister forbindelsen i ~30 sek under opdatering.')) return;
-  fetch('/ota/update', {method:'POST'});
+  inlineConfirm('ota-install-confirm','Opdater firmware nu? Dashboardet mister forbindelsen i ~30 sek.',()=>fetch('/ota/update',{method:'POST'}));
 }
 function otaDismiss() { _otaDismissed = true; $('ota-banner').style.display = 'none'; }
 function otaSetAuto(on) {
