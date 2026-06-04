@@ -9,6 +9,7 @@
 #include <U8g2lib.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <esp_task_wdt.h>
 #include "version.h"
 
 // ─── Pins (ESP32-C5-WROOM-1) ─────────────────────────────────────────────────
@@ -119,6 +120,13 @@ static uint8_t  otaProgress    = 0;   // 0–100 %
 static String   otaAvailVer    = "";
 static String   otaError       = "";
 static bool     otaAutoEnabled = true;  // can be toggled via /ota/config
+
+// FreeRTOS task handle + command flag.
+// loop() and HTTP handlers set otaTaskCmd and notify the task – they never
+// call blocking OTA functions directly (that caused watchdog resets).
+// 0 = idle, 1 = check for update, 2 = perform update
+static TaskHandle_t     otaTaskHandle = NULL;
+static volatile uint8_t otaTaskCmd   = 0;
 
 // ─── ISRs ────────────────────────────────────────────────────────────────────
 void IRAM_ATTR crankISR()
@@ -461,6 +469,24 @@ static void otaPerformUpdate()
     ESP.restart();
 }
 
+// FreeRTOS task that owns all blocking OTA work.
+// Sleeps until loop() or an HTTP handler signals it via xTaskNotifyGive().
+// Removing this task from the Task WDT means long TLS/download operations
+// won't cause resets – the main loop stays healthy throughout.
+static void otaTask(void* /*arg*/)
+{
+    // Detach from Task Watchdog – this task intentionally blocks for up to 60 s
+    esp_task_wdt_delete(NULL);
+
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // sleep until signalled
+        uint8_t cmd = otaTaskCmd;
+        otaTaskCmd = 0;
+        if      (cmd == 1) otaCheckAvailable();
+        else if (cmd == 2) otaPerformUpdate();
+    }
+}
+
 // ─── Setup ───────────────────────────────────────────────────────────────────
 void setup()
 {
@@ -736,12 +762,16 @@ void setup()
     });
     server.on("/ota/check", HTTP_POST, [](AsyncWebServerRequest* req) {
         req->send(200, "text/plain", "OK");
-        otaCheckAvailable();  // blocking ~1-2 s
+        // Signal OTA task – never block the async handler context
+        otaTaskCmd = 1;
+        if (otaTaskHandle) xTaskNotifyGive(otaTaskHandle);
     });
     server.on("/ota/update", HTTP_POST, [](AsyncWebServerRequest* req) {
         if (otaState == 3) { req->send(409, "text/plain", "already updating"); return; }
         req->send(200, "text/plain", "OK");
-        otaPerformUpdate();   // blocking, device reboots if successful
+        // Signal OTA task – never block the async handler context
+        otaTaskCmd = 2;
+        if (otaTaskHandle) xTaskNotifyGive(otaTaskHandle);
     });
     server.on("/ota/config", HTTP_POST, [](AsyncWebServerRequest* req) {
         if (req->hasParam("auto", true)) {
@@ -759,6 +789,9 @@ void setup()
     server.onNotFound([](AsyncWebServerRequest* req){
         req->redirect("http://192.168.4.1/");
     });
+
+    // OTA task: 20 KB stack (TLS/mbedTLS needs headroom), priority 1 (below loop=1? no – same is fine)
+    xTaskCreate(otaTask, "ota", 20480, NULL, 1, &otaTaskHandle);
 
     server.begin();
 }
@@ -791,7 +824,9 @@ void loop()
                            (millis() - lastOtaCheck > OTA_CHECK_INTERVAL_MS);
         if (timeToCheck) {
             lastOtaCheck = millis();
-            otaCheckAvailable();  // ~1-2 s blocking – acceptable at 6h interval
+            // Signal OTA task – never block loop() directly
+            otaTaskCmd = 1;
+            if (otaTaskHandle) xTaskNotifyGive(otaTaskHandle);
         }
     }
 
