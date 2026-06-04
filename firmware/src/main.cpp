@@ -5,6 +5,7 @@
 #include <LittleFS.h>
 #include <Update.h>
 #include <DNSServer.h>
+#include <ESPmDNS.h>
 #include <Wire.h>
 #include <U8g2lib.h>
 #include <HTTPClient.h>
@@ -535,9 +536,14 @@ void setup()
     // WiFi – AP always on; STA if configured.
     // esp_wifi_set_band_mode removed: let Arduino WiFi stack manage init
     // internally. On ESP32-C5 AP defaults to 2.4 GHz which is what we need.
+    WiFi.setHostname("ignlogger");   // replaces default esp32xxxxxx on the network
     WiFi.mode(staSSID.length() > 0 ? WIFI_AP_STA : WIFI_AP);
     WiFi.softAP(AP_SSID, AP_PASS);
     dnsServer.start(53, "*", WiFi.softAPIP());
+    if (MDNS.begin("ignlogger")) {
+        MDNS.addService("http", "tcp", 80);
+        Serial.println("mDNS: http://ignlogger.local");
+    }
     Serial.printf("AP: %s  IP: %s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
     if (staSSID.length() > 0) {
         WiFi.begin(staSSID.c_str(), staPass.c_str());
