@@ -9,7 +9,6 @@
 #include <U8g2lib.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
-#include <esp_task_wdt.h>
 #include "version.h"
 
 // ─── Pins (ESP32-C5-WROOM-1) ─────────────────────────────────────────────────
@@ -475,9 +474,9 @@ static void otaPerformUpdate()
 // won't cause resets – the main loop stays healthy throughout.
 static void otaTask(void* /*arg*/)
 {
-    // Detach from Task Watchdog – this task intentionally blocks for up to 60 s
-    esp_task_wdt_delete(NULL);
-
+    // Note: this task is not registered with the Task WDT (we never called
+    // esp_task_wdt_add) so it is not monitored by it. That is intentional –
+    // TLS handshakes and firmware downloads can legitimately take 30-60 s.
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // sleep until signalled
         uint8_t cmd = otaTaskCmd;
