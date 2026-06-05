@@ -482,8 +482,11 @@ static void otaTask(void* /*arg*/)
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // sleep until signalled
         uint8_t cmd = otaTaskCmd;
         otaTaskCmd = 0;
-        if      (cmd == 1) otaCheckAvailable();
-        else if (cmd == 2) otaPerformUpdate();
+        if (cmd == 1) {
+            otaCheckAvailable();
+            // If auto-update is enabled and check found new firmware, install immediately
+            if (otaAutoEnabled && otaState == 2) otaPerformUpdate();
+        } else if (cmd == 2) otaPerformUpdate();
     }
 }
 
