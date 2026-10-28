@@ -9,39 +9,49 @@ Reverse engineer Toyota 4E-FE OEM ECU via signalanalyse på NE (crank) og IGT (i
 ### Pin-oversigt (ESP32-C5)
 | Pin    | Signal         | Type      | Beskyttelse           | Bemærkning        |
 |--------|----------------|-----------|-----------------------|-------------------|
-| GPIO6  | NE crank       | Digital   | 10k/18k deler (5V)    | Påkrævet          |
-| GPIO5  | IGT ignition   | Digital   | 33k/10k deler (12V)   | Påkrævet          |
+| GPIO6  | NE crank       | Digital   | MAX9926 VR-modul, OUT + 10k pull-up til 3V3 | Påkrævet (ECU A21 NE+ / A9 NE−) |
+| GPIO5  | IGT ignition   | Digital   | 10k/18k deler (5V)    | Påkrævet (ECU A6 IGT1) |
 | GPIO10 | CAL knap       | Digital   | Intern pull-up        | Påkrævet          |
-| GPIO2  | MAP sensor     | ADC1_CH2  | 10k/18k deler (5V)    | Valgfri, auto-detekteret |
-| GPIO15 | Fuel injektor  | Digital   | 33k/10k deler (12V)   | Valgfri, auto-detekteret |
-| GPIO23 | IAC ventil PWM | Digital   | 33k/10k deler (12V)   | Valgfri, auto-detekteret |
-| GPIO3  | Knock sensor   | ADC1_CH3  | 33k/10k deler (12V)   | Valgfri, altid samplet   |
+| GPIO2  | MAP sensor     | ADC1_CH2  | 10k/18k deler (5V)    | Valgfri, auto-detekteret (ECU A4 PIM) |
+| GPIO15 | Fuel injektor  | Digital   | 33k/10k deler + BAT54S clamp (12V) | Valgfri, auto-detekteret (ECU A12 #10) |
+| GPIO23 | IAC ventil PWM | Digital   | 33k/10k deler + BAT54S clamp (12V) | Valgfri, auto-detekteret (ECU A14 RSO) |
+| GPIO3  | Knock sensor   | ADC1_CH3  | Ikke tilsluttet på 4E-FE | Altid samplet, men ubrugt (deler belaster OEM piezo) |
 | GPIO21 | OLED SDA       | I2C       | Ingen                  | Valgfri, auto-detekteret |
 | GPIO20 | OLED SCL       | I2C       | Ingen                  | Valgfri, auto-detekteret |
 
 Reserverede pins der **ikke** må bruges: GPIO12–14 (intern SPI flash i modulet), GPIO18/19 (native USB D+/D-), GPIO11 (UART0 TX → Serial monitor).
 
-### Spændingsdelere
-```
-NE / MAP (5V):   SIG ---[10k]---+--- GPIO
-                                |
-                               [18k]
-                                |
-                               GND
+### Tilslutning til Toyota 4E-FE (Corolla E11, ECU 89661-1A760)
+Loggeren tappes **parallelt bag på OEM-ECU'ens stik**, mens bilen kører på original-ECU'en. Fuldt diagram: `docs/wiring-4e-fe.svg`.
 
-IGT / INJ / IAC (12V): SIG ---[33k]---+--- GPIO
-                                      |
-                                     [10k]
-                                      |
-                                     GND
 ```
+NE (VR-sensor, ± AC – aldrig en ren modstandsdeler, NE− må ikke til stel):
+  A21 NE+ → MAX9926 IN+,  A9 NE− → MAX9926 IN−,  OUT (open drain) → GPIO6 + 10k pull-up til 3V3
+  MAX9926 VCC = DevKit 5V-pin, GND = E1
+
+IGT1 (A6) / PIM (A4), 5V:      SIG ---[10k]---+--- GPIO
+                                              |
+                                             [18k]
+                                              |
+                                             GND
+
+#10 (A12) / RSO (A14), 12V:    SIG ---[33k]---+---+--- GPIO
+                                              |   |
+                                             [10k] BAT54S → 3V3 / GND (clamp mod 40–80 V induktive spidser)
+                                              |
+                                             GND
+```
+- **S1 (CAL-mode):** vippekontakt A2 TE1 ↔ A24 E1. OEM-ECU'en låser så tændingen på 10° BTDC.
+- **GND:** A24 E1. Forsyning fra powerbank på USB-C, ikke bilens 12 V.
+- **Må ikke tilsluttes:** THW/THA (NTC med pull-up i ECU'en), KNK1 (højimpedant piezo).
+- IGT er 5 V: en 33k/10k-deler giver kun ~1,2 V og registreres aldrig som HIGH.
 
 ## Signallogik
-- **NE**: Digital 36-2 crank trigger. Missing tooth = 0° reference (TDC).
-- **IGT**: Ignition command. Rising = dwell start. Falling = spark / ignition event.
-- **MAP**: Analog tryk-sensor. 0.5V=10kPa, 4.5V=105kPa (Bosch 1-bar approx).
-- **INJ**: Fuel injector puls. Falling = start, Rising = slut. Pulsbredde = indsprøjtningsvarighed.
-- **IAC**: PWM signal fra ECU. Duty cycle = ventil-åbning %.
+- **NE**: VR-sensor på 36-2 triggerhjul, konditioneret af MAX9926. Første tand efter hullet = tand 0; offset til TDC findes ved kalibrering.
+- **IGT**: Ignition command (5 V, IGT1 = cyl. 1+4, wasted spark). Rising = dwell start. Falling = spark / ignition event.
+- **MAP**: Analog tryk-sensor (Toyota PIM). Standard: 1.16V=20kPa, 3.71V=105kPa (Toyota 4E-FE preset, ~0.03 V/kPa).
+- **INJ**: Fuel injector puls (gruppe #10 = cyl. 1+3). Falling = start, Rising = slut. Pulsbredde = indsprøjtningsvarighed.
+- **IAC**: PWM signal fra ECU til 1-spolet rotary solenoid (RSO/RSD). Duty cycle = ventil-åbning %.
 - **Knock**: Analog resonanssignal (knock sensor). 64 ADC-læsninger → peak-to-peak amplitude 0–100%.
 - **OLED**: SSD1306 128×64 display. **Deaktiveret** – Wire.begin() crasher på ESP32-C5 eco2 pga. arduino-esp32 3.3.8 bruger legacy I2C driver API der ikke matcher C5 eco2 hardware. `oledOk = false` hardkodet. TODO: genaktiver når arduino-esp32 har native ESP32-C5 I2C HAL.
 
@@ -73,16 +83,17 @@ knock_pct  = (adcMax - adcMin) * 100 / 4095      [0–100%, 64 samples]
 MAP sensor standard-presets:
 | Navn         | Vmin  | Vmax  | kPa min | kPa max |
 |--------------|-------|-------|---------|---------|
+| Toyota 4E-FE (standard) | 1.16V | 3.71V | 20 kPa | 105 kPa |
 | Bosch 1-bar  | 0.50V | 4.50V | 10 kPa  | 105 kPa |
 | Bosch 2.5-bar| 0.50V | 4.50V | 20 kPa  | 250 kPa |
 | GM 3-bar     | 0.50V | 4.50V | 10 kPa  | 300 kPa |
 | MPX4115      | 0.20V | 4.80V | 15 kPa  | 115 kPa |
 
-Tand-tæller nulstilles ved missing-tooth: dt > lastPeriod × 1.7.
-Frac clampes til [0, 1] og nulstilles hvis motoren er stoppet (dt > period × 3).
+Tand-tæller nulstilles ved missing-tooth: dt > lastPeriod × 1.7. Hullet varer 3 tandperioder (36-2), så `toothPeriodUs` gemmes som `dt / MISSING_GAP_PERIODS` ved hullet.
+Frac clampes til [0, 1] og nulstilles hvis motoren er stoppet (dt > period × 4; hullet selv varer 3 perioder).
 
 ## Kalibrering
-Tryk GPIO10 kortvarigt ved idle (motor = 10° BTDC, standard Toyota):
+Varm tomgang, **S1 slået til (TE1–E1 brokoblet)**, så OEM-ECU'en låser på 10° BTDC. Tryk GPIO10 kortvarigt, og slå S1 fra igen. Uden bro varierer tomgangstændingen 5–23°:
 ```
 calibOffset = toothCount * 10 + 10
 ```
@@ -176,7 +187,7 @@ Tomme felter = sensor ikke tilsluttet.
 Flush-interval: hver 5. write. Hentes via GET `/log.csv`. Slettes via POST `/log/clear`.
 Første linje i ny fil er metadata-kommentar:
 ```
-# OEM Ignition Logger | offset=215.0 | MAP Bosch=0.50V–4.50V 10–105kPa
+# OEM Ignition Logger | offset=215.0 | MAP MAP=1.16V–3.71V 20–105kPa
 ```
 
 ## Platform & Biblioteker
@@ -227,6 +238,7 @@ sim/
 
 docs/
   index.html            web flasher (GitHub Pages, ESP Web Tools)
+  wiring-4e-fe.svg      ledningsdiagram: Toyota 4E-FE ECU-stik → interface → ESP32-C5
   manifest.json         ESP Web Tools manifest → releases/latest
 
 .github/workflows/
@@ -265,7 +277,7 @@ node screenshot.js
 JavaScript-datagenerator der producerer realistiske motordata:
 - RPM ~875 omdrejninger (varierer sinusformet)
 - Advance ~10.2° BTDC, Dwell ~3.14 ms
-- MAP ~98.5 kPa (Bosch 1-bar skalering)
+- MAP ~35 kPa (tomgangsvakuum, Toyota 4E-FE skalering)
 - Injektor ~2.30 ms, IAC ~45% duty @ 14.2 Hz
 - Knock amplitude ~8% (under tærskel)
 
@@ -294,6 +306,8 @@ Web flasher er live på:
 
 | Problem | Detalje | Status |
 |---------|---------|--------|
+| ~~Advance/RPM forkert i tand 0~~ | ~~Efter hullet blev `toothPeriodUs` sat til hele hullets varighed (3 perioder), så frac/advance/RPM i tand 0 var op til ~6,7° forkerte.~~ | **Fikset** – `dt / MISSING_GAP_PERIODS` ved hullet |
+| ~~IGT-deler forkert~~ | ~~Dokumentationen angav 33k/10k for IGT (5 V-signal → ~1,2 V, aldrig HIGH) og en ren deler på NE (VR-sensor).~~ | **Fikset** – 10k/18k på IGT, MAX9926 på NE |
 | OLED deaktiveret | `Wire.begin()` crasher ESP32-C5 eco2 pga. legacy `i2c_driver_install()` API i arduino-esp32 3.3.8. `oledOk = false` hardkodet i `setup()`. | Afventer upstream fix |
 | ~~IAC duty% forkert~~ | ~~`iacISR()` målte edge-to-edge (dvs. low-time), ikke rising-to-rising period. Duty% var kun korrekt ved 50% duty.~~ | **Fikset** – tilføjet `lastIacRiseUs` |
 | ~~Sync-flag ryddes ikke~~ | ~~`synced` sættes aldrig `false` igen efter signaltab. Sync-kort viste "OK" og CAL-knap forblev aktiv ved RPM=0.~~ | **Fikset** – `sync=false` i stale-check |
@@ -308,7 +322,7 @@ Web flasher er live på:
 - [x] Kalibrerings-knap i web UI + manuel offset-input (GET /status, POST /cal, POST /cal/set)
 - [x] LittleFS-baseret logging (append til /ignlog.csv, overlever genstart, auto-stop ved fuld FS)
 - [x] WiFi Station mode – forbind til eksisterende WiFi (AP+STA dual mode, NVS-gemt)
-- [x] MAP-sensor konfiguration (custom kPa/V kurve, 4 presets + manuel, NVS-gemt, live V-visning)
+- [x] MAP-sensor konfiguration (custom kPa/V kurve, 5 presets (inkl. Toyota 4E-FE) + manuel, NVS-gemt, live V-visning)
 - [x] Konfigurationspanel: sensor-labels (brugerdefinerede navne for MAP/INJ/IAC, NVS-gemt)
 - [x] IAC frekvens-visning (Hz ved siden af duty %, hjælper identifikation af solenoid vs stepper)
 - [x] Session min/max tracking på alle gauge-kort (reset-knap i header)
@@ -333,7 +347,8 @@ Web flasher er live på:
 - [x] CSV download-filnavn inkl. dato (ignlog_YYYY-MM-DD.csv)
 - [x] Canvas resize handler (grafer tegner korrekt efter browser/mobil rotation)
 - [x] OTA auto-update: `version.h` stamped af CI, check hvert 6. time via manifest.json, download+flash fra GitHub releases, dashboard banner + progress
-- [ ] IAC stepper decodning (Toyota 4E-FE bruger 4-wire stepper, ikke simpel PWM)
+- [x] ~~IAC stepper decodning~~ – ikke relevant: Corolla E11 4E-FE (1997+) bruger en 1-spolet rotary solenoid (RSO/RSD) med PWM, som allerede måles korrekt
+- [ ] Valgfri INJ2-kanal til #20 (A25, cyl. 2+4) for at bekræfte, at grupperne er ens
 
 ### v2 – OLED standalone display
 > **Status**: Kode implementeret, men OLED er p.t. deaktiveret (`oledOk = false`) pga. ESP32-C5 I2C HAL bug i arduino-esp32 3.3.8. Afventer native C5 I2C support.

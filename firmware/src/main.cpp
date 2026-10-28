@@ -17,17 +17,20 @@
 // GPIO12-14 are used by SPI flash inside the module – do not use.
 // GPIO18/19 are USB D+/D-.
 //
-// HARDWARE REWIRING REQUIRED vs original ESP32 layout:
-//   NE    → GPIO6   (was GPIO25)  5V via 10k/18k divider
-//   IGT   → GPIO5   (was GPIO26)  12V via 33k/10k divider
-//   CAL   → GPIO10  (was GPIO0)
-//   MAP   → GPIO2   (was GPIO34)  5V via 10k/18k divider, ADC1_CH2
-//   INJ   → GPIO15  (was GPIO35)  12V via 33k/10k divider
+// Interface to the Toyota 4E-FE OEM ECU connector (tapped in parallel, listen only).
+// See docs/wiring-4e-fe.svg.
+//   NE    → GPIO6   ECU A21 NE+ / A9 NE- → MAX9926 VR conditioner (differential),
+//                   open-drain OUT with 10k pull-up to 3V3. NE is a VR sensor
+//                   (AC, amplitude grows with RPM) – never a plain resistor divider.
+//   IGT   → GPIO5   ECU A6 IGT1, 5V logic → 10k/18k divider
+//   CAL   → GPIO10  push button to GND (internal pull-up)
+//   MAP   → GPIO2   ECU A4 PIM, 0-5V → 10k/18k divider, ADC1_CH2
+//   INJ   → GPIO15  ECU A12 #10 (cyl 1+3), 12V low side → 33k/10k + BAT54S clamp
 //           (GPIO11 = UART0 TX, brugt af Serial → kan ikke bruges til INJ)
-//   IAC   → GPIO23  (was GPIO32)  12V via 33k/10k divider
-//   KNOCK → GPIO3   (was GPIO33)  12V via 33k/10k divider, ADC1_CH3
-//   SDA   → GPIO21  (unchanged)
-//   SCL   → GPIO20  (was GPIO22)
+//   IAC   → GPIO23  ECU A14 RSO, 12V PWM low side → 33k/10k + BAT54S clamp
+//   KNOCK → GPIO3   not connected on 4E-FE (a divider loads the OEM piezo signal)
+//   SDA   → GPIO21
+//   SCL   → GPIO20
 #define PIN_NE     6
 #define PIN_IGT    5
 #define PIN_CAL   10
@@ -71,10 +74,16 @@ bool   staConnected = false;
 static constexpr float MAP_DIV_COMP = 28.0f / 18.0f;  // ≈ 1.5556
 
 // MAP sensor scaling (sensor voltage → kPa; divider compensated inside readMapKpa)
-float mapVmin   = 0.5f;    // sensor V at min pressure
-float mapVmax   = 4.5f;    // sensor V at max pressure
-float mapKpaMin = 10.0f;   // kPa at Vmin
+// Default: Toyota 4E-FE vacuum sensor (PIM), approx. 0.03 V/kPa
+// (Toyota spec: ~0.4 V drop per 13.3 kPa vacuum, 3.3–3.9 V at atmosphere).
+// Starting point – verify engine-off reading against today's barometric pressure.
+float mapVmin   = 1.16f;   // sensor V at min pressure
+float mapVmax   = 3.71f;   // sensor V at max pressure
+float mapKpaMin = 20.0f;   // kPa at Vmin
 float mapKpaMax = 105.0f;  // kPa at Vmax
+
+// 36-2 trigger wheel: the missing-tooth gap spans 3 tooth periods
+static constexpr uint32_t MISSING_GAP_PERIODS = 3;
 
 // Sensor labels (user-defined names shown in dashboard)
 String lblMap = "MAP";
@@ -133,7 +142,12 @@ void IRAM_ATTR crankISR()
 {
     uint32_t now = micros(), dt = now - lastToothUs;
     if (toothPeriodUs > 0) {
-        if (dt > toothPeriodUs * 1.7f) { toothCount = 0; synced = true; syncCount = syncCount + 1; }
+        if (dt > toothPeriodUs * 1.7f) {
+            toothCount = 0; synced = true; syncCount = syncCount + 1;
+            // The gap is 3 tooth periods long. Store one normal period so that
+            // frac/advance/RPM in tooth 0 are not off by a factor of 3 (up to ~6.7°).
+            dt /= MISSING_GAP_PERIODS;
+        }
         else { int tc = toothCount + 1; toothCount = (tc >= 36) ? 0 : tc; }
     }
     toothPeriodUs = dt; lastToothUs = now;
@@ -267,7 +281,9 @@ static void computeValues(float& rpm, float& adv, float& dwell,
     uint32_t dt = micros() - lastToothUs;
     dwell       = dwellMs; sync = synced;
     interrupts();
-    if (tp==0 || dt/tp>3) { frac=0; adv=0; rpm=0; sync=false; return; }  // also clear sync when signal is stale
+    // Stale signal → clear. The 36-2 gap itself lasts 3 periods, so use 4 to avoid
+    // false "stopped" samples taken just before the first tooth after the gap.
+    if (tp==0 || dt/tp>4) { frac=0; adv=0; rpm=0; sync=false; return; }  // also clear sync when signal is stale
     frac = (float)dt/tp; if (frac>1.0f) frac=1.0f;
     adv  = calibOffset - (tooth*10.0f + frac*10.0f);
     rpm  = 60000000.0f / (tp*36.0f);
@@ -510,9 +526,9 @@ void setup()
     calibOffset = prefs.getFloat("offset",    215.0f);
     staSSID     = prefs.getString("sta_ssid", "");
     staPass     = prefs.getString("sta_pass", "");
-    mapVmin     = prefs.getFloat("map_vmin",   0.5f);
-    mapVmax     = prefs.getFloat("map_vmax",   4.5f);
-    mapKpaMin   = prefs.getFloat("map_kmin",  10.0f);
+    mapVmin     = prefs.getFloat("map_vmin",   1.16f);
+    mapVmax     = prefs.getFloat("map_vmax",   3.71f);
+    mapKpaMin   = prefs.getFloat("map_kmin",  20.0f);
     mapKpaMax   = prefs.getFloat("map_kmax", 105.0f);
     lblMap      = prefs.getString("lbl_map", "MAP");
     lblInj      = prefs.getString("lbl_inj", "Injektor");

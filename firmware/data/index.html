@@ -114,7 +114,7 @@ footer a:hover{color:#888}
   <button class="btn-ota" id="ota-dismiss" style="display:none;background:#1e1e1e;color:#555" onclick="otaDismiss()">×</button>
 </div>
 
-<div id="no-sig" class="no-sig" style="display:none"><span class="no-sig-dot"></span> Intet signal – tjek NE (GPIO6) og IGT (GPIO5) forbindelserne</div>
+<div id="no-sig" class="no-sig" style="display:none"><span class="no-sig-dot"></span> Intet signal – tjek NE (GPIO6, via MAX9926) og IGT (GPIO5) forbindelserne</div>
 
 <div class="grid">
   <div class="card"><label>RPM</label><div class="val" id="rpm">—</div><div class="rpm-bg"><div class="rpm-bar" id="rpm-bar"></div></div><div class="unit">omdrejninger/min</div><div class="stats" id="st-rpm"></div></div>
@@ -228,7 +228,7 @@ footer a:hover{color:#888}
       <input type="number" id="cal-val" min="1" max="359" step="1" value="215">
       <button class="btn btn-s" onclick="setOffset()">Gem</button>
     </div>
-    <p class="hint">Kalibrér ved et kendt advance. Standard: idle = 10° BTDC (Toyota 4E-FE).</p>
+    <p class="hint">Kalibrér ved et kendt advance. Toyota 4E-FE: brokobl TE1–E1 (S1) ved varm tomgang – OEM-ECU'en låser så tændingen på 10° BTDC. Uden bro varierer tomgangstændingen 5–23°.</p>
   </div>
 </div>
 
@@ -273,6 +273,7 @@ footer a:hover{color:#888}
     </div>
     <div class="row">
       <span class="lbl">Forudindstilling:</span>
+      <button class="btn btn-s" onclick="setPreset(1.16,3.71,20,105)">Toyota 4E-FE</button>
       <button class="btn btn-s" onclick="setPreset(0.5,4.5,10,105)">Bosch 1-bar</button>
       <button class="btn btn-s" onclick="setPreset(0.5,4.5,20,250)">Bosch 2.5-bar</button>
       <button class="btn btn-s" onclick="setPreset(0.5,4.5,10,300)">GM 3-bar</button>
@@ -280,15 +281,15 @@ footer a:hover{color:#888}
     </div>
     <div class="row" style="margin-top:10px">
       <span class="lbl">Vmin (V)</span>
-      <input type="number" id="map-vmin" step="0.01" min="0" max="5" value="0.50" style="width:72px">
+      <input type="number" id="map-vmin" step="0.01" min="0" max="5" value="1.16" style="width:72px">
       <button class="btn btn-s" style="font-size:.7rem;padding:4px 8px" onclick="useCurrentV('map-vmin')">Brug aktuel</button>
       <span class="lbl">→</span>
-      <input type="number" id="map-kmin" step="1" min="0" max="400" value="10" style="width:72px">
+      <input type="number" id="map-kmin" step="1" min="0" max="400" value="20" style="width:72px">
       <span class="lbl">kPa</span>
     </div>
     <div class="row" style="margin-top:6px">
       <span class="lbl">Vmax (V)</span>
-      <input type="number" id="map-vmax" step="0.01" min="0" max="5" value="4.50" style="width:72px">
+      <input type="number" id="map-vmax" step="0.01" min="0" max="5" value="3.71" style="width:72px">
       <button class="btn btn-s" style="font-size:.7rem;padding:4px 8px" onclick="useCurrentV('map-vmax')">Brug aktuel</button>
       <span class="lbl">→</span>
       <input type="number" id="map-kmax" step="1" min="0" max="400" value="105" style="width:72px">
@@ -354,7 +355,7 @@ footer a:hover{color:#888}
       <button class="btn btn-s" onclick="resetKnockCount()">Nulstil tæller</button>
       <span class="msg" id="knock-msg"></span>
     </div>
-    <p class="hint">Peak-to-peak amplitude over 64 ADC-læsninger @ 5 Hz. Bar rød = over tærskel. 33k/10k spændingsdeler (12V indgang).</p>
+    <p class="hint">Peak-to-peak amplitude over 64 ADC-læsninger @ 5 Hz. Bar rød = over tærskel. Ikke tilsluttet på 4E-FE: en deler belaster OEM-ECU'ens piezo-signal.</p>
   </div>
 </div>
 

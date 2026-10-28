@@ -11,42 +11,57 @@ Måler advance (°BTDC), dwell, RPM, MAP-tryk, injektor-pulsbredde og knock ud f
 
 ### 1. Saml hardwaren
 
+Loggeren sidder **parallelt bag på OEM-ECU'ens stik** (backprobe-nåle eller T-kabel), mens bilen kører på den originale ECU. Den lytter kun og må ikke belaste signalerne.
+
+![Ledningsdiagram 4E-FE → ESP32-C5](docs/wiring-4e-fe.svg)
+
 Du skal bruge:
-- 1× **ESP32-C5-WROOM-1 DevKitC** (USB-C)
-- Modstande: **4× 33 kΩ**, **4× 10 kΩ**, **2× 18 kΩ** (1/4 W)
-- 1× momentan trykknap (CAL)
-- Ledning til bilens ECU-stik (NE + IGT minimum)
-
-Tilslut signalerne med spændingsdelere så ECU'ens 5 V/12 V signaler bliver til 3.3 V som ESP32 kan tåle:
+- 1× **ESP32-C5-WROOM-1 DevKitC** (USB-C), forsynet fra en **powerbank** (ikke bilens 12 V – undgår stelsløjfer)
+- 1× **MAX9926 VR-modul** (fx et Speeduino VR-board), forsynet fra DevKit'ets 5V-pin
+- Modstande: **2× 10 kΩ + 2× 18 kΩ** (IGT, MAP), **2× 33 kΩ + 2× 10 kΩ** (INJ, IAC), **1× 10 kΩ** (pull-up på MAX9926 OUT)
+- **2× BAT54S** (eller 2× 1N4148 pr. kanal) som clamp på INJ og IAC
+- 1× momentan trykknap (CAL) og 1× vippekontakt (S1, TE1–E1)
 
 ```
-NE / MAP  (5V):                  IGT / INJ / IAC / Knock (12V):
+NE (VR-sensor, ± AC):
+  A21 NE+ ──► IN+ ┌─────────┐ OUT ──┬──────── GPIO6
+  A9  NE− ──► IN− │ MAX9926 │       │
+                  └─────────┘     [10k] → 3V3      (MAX9926 VCC = 5V, GND = E1)
 
-  ECU ───[10kΩ]───┬─── GPIO        ECU ───[33kΩ]───┬─── GPIO
-                  │                                 │
-                [18kΩ]                            [10kΩ]
-                  │                                 │
-                 GND                               GND
+IGT1 / PIM (5 V):                 INJ #10 / RSO (12 V + induktive spidser):
+  ECU ──[10k]──┬── GPIO             ECU ──[33k]──┬────────┬── GPIO
+             [18k]                             [10k]   BAT54S → 3V3 og GND
+               │                                 │
+              GND                               GND
 ```
+
+> **NE er en VR-sensor.** Den giver ± vekselspænding, der stiger med omdrejningstallet, og skal gennem en VR-konditionering. En ren modstandsdeler sender negativ spænding ind i GPIO'en. NE− må **ikke** forbindes til stel (det er ECU'ens reference).
+>
+> **IGT er 5 V.** En 33k/10k-deler giver kun ca. 1,2 V, og ESP'en ser aldrig HIGH. Brug 10k/18k.
 
 **Påkrævet:**
-| Pin    | Signal       | Spændingsdeler        |
-|--------|--------------|-----------------------|
-| GPIO6  | NE crank     | 10 k / 18 k (5 V)     |
-| GPIO5  | IGT ignition | 33 k / 10 k (12 V)    |
-| GPIO10 | CAL knap     | Direkte til GND (intern pull-up) |
+| Pin    | Signal       | ECU-pin (4E-FE) | Interface                         |
+|--------|--------------|-----------------|-----------------------------------|
+| GPIO6  | NE crank     | A21 NE+ / A9 NE− | MAX9926, OUT + 10k pull-up til 3V3 |
+| GPIO5  | IGT ignition | A6 IGT1 (cyl. 1+4) | 10 k / 18 k (5 V)               |
+| GPIO10 | CAL knap     | –               | Direkte til GND (intern pull-up)  |
+| GND    | Fælles stel  | A24 E1          | Direkte                           |
 
 **Valgfrit** (kan tilføjes senere – auto-detekteres):
-| Pin    | Signal         | Spændingsdeler         |
-|--------|----------------|------------------------|
-| GPIO2  | MAP sensor     | 10 k / 18 k (5 V)      |
-| GPIO15 | Fuel injektor  | 33 k / 10 k (12 V)     |
-| GPIO23 | IAC ventil PWM | 33 k / 10 k (12 V)     |
-| GPIO3  | Knock sensor   | 33 k / 10 k (12 V)     |
-| GPIO21 | OLED SDA       | (ingen – I2C 3.3 V)    |
-| GPIO20 | OLED SCL       | (ingen – I2C 3.3 V)    |
+| Pin    | Signal         | ECU-pin (4E-FE)       | Interface                    |
+|--------|----------------|-----------------------|------------------------------|
+| GPIO2  | MAP sensor     | A4 PIM                | 10 k / 18 k (5 V)            |
+| GPIO15 | Fuel injektor  | A12 #10 (cyl. 1+3)    | 33 k / 10 k + BAT54S clamp   |
+| GPIO23 | IAC ventil PWM | A14 RSO               | 33 k / 10 k + BAT54S clamp   |
+| GPIO3  | Knock sensor   | **ikke tilsluttet**   | En deler belaster OEM-ECU'ens piezo-signal |
+| GPIO21 | OLED SDA       | –                     | (ingen – I2C 3.3 V)          |
+| GPIO20 | OLED SCL       | –                     | (ingen – I2C 3.3 V)          |
 
-> **Tip:** Forbind altid ESP32 **GND** til bilens **chassis-jord** før noget andet.
+**S1 (CAL-mode):** vippekontakt mellem **A2 TE1** og **A24 E1**. Når den er slået til, låser OEM-ECU'en tændingen på 10° BTDC (8–12°).
+
+**Må ikke tilsluttes:** THW og THA (NTC'er med pull-up i ECU'en – en ekstra deler ændrer, hvad OEM-ECU'en læser), KNK1 (piezo, højimpedant).
+
+> **Tip:** Forbind altid ESP32 **GND** til ECU'ens **E1** før noget andet.
 
 ### 2. Flash firmwaren
 
@@ -70,11 +85,14 @@ Telefon/PC åbner dashboardet automatisk via captive portal. Ellers tast adresse
 
 ### 4. Kalibrér ved idle
 
-1. Start motoren, lad den varme op til stabil tomgang
-2. **Tryk kortvarigt på CAL-knappen** (eller tryk **Kalibrér** på dashboardet)
-3. Offset gemmes i flashen og bevares efter genstart
+1. Start motoren, og lad den køre, til køleventilatoren har slået til
+2. **Slå S1 til** (TE1–E1 brokoblet). OEM-ECU'en låser nu tændingen på 10° BTDC. Uden broen varierer tomgangstændingen 5–23°, og kalibreringen bliver forkert
+3. Vent 5 s, og **tryk kortvarigt på CAL-knappen** (eller tryk **Kalibrér** på dashboardet)
+4. **Slå S1 fra** igen. Offset gemmes i flashen og bevares efter genstart
 
-> Standard er 10° BTDC (Toyota idle). Det kan ændres via `/cal/set` eller dashboardet hvis dit setup er anderledes.
+> Kalibreringsvinklen er 10° BTDC som standard. Det kan ændres via `/cal/set` eller dashboardet, hvis dit setup er anderledes.
+
+**MAP:** Standard-skaleringen er preset'en **Toyota 4E-FE** (1,16 V = 20 kPa, 3,71 V = 105 kPa, ca. 0,03 V/kPa). Det er et startpunkt: med tænding til og motoren stoppet skal MAP vise dagens lufttryk (ca. 100 kPa), og ved varm tomgang 21–48 kPa.
 
 ### 5. Brug dashboardet
 
@@ -97,17 +115,17 @@ Auto-opdatering kan slås fra under Diagnostik i dashboardet.
 
 ## Pin-oversigt (komplet)
 
-| Pin    | Signal         | Type     | Beskyttelse           | Status                   |
-|--------|----------------|----------|-----------------------|--------------------------|
-| GPIO6  | NE crank       | Digital  | 10 k / 18 k (5 V)     | Påkrævet                 |
-| GPIO5  | IGT ignition   | Digital  | 33 k / 10 k (12 V)    | Påkrævet                 |
-| GPIO10 | CAL knap       | Digital  | Intern pull-up        | Påkrævet                 |
-| GPIO2  | MAP sensor     | ADC1_CH2 | 10 k / 18 k (5 V)     | Valgfri, auto-detekteret |
-| GPIO15 | Fuel injektor  | Digital  | 33 k / 10 k (12 V)    | Valgfri, auto-detekteret |
-| GPIO23 | IAC ventil PWM | Digital  | 33 k / 10 k (12 V)    | Valgfri, auto-detekteret |
-| GPIO3  | Knock sensor   | ADC1_CH3 | 33 k / 10 k (12 V)    | Valgfri, altid samplet   |
-| GPIO21 | OLED SDA       | I2C      | –                     | Reserveret (OLED p.t. deaktiveret) |
-| GPIO20 | OLED SCL       | I2C      | –                     | Reserveret (OLED p.t. deaktiveret) |
+| Pin    | Signal         | Type     | ECU-pin (4E-FE)    | Interface                    | Status                   |
+|--------|----------------|----------|--------------------|------------------------------|--------------------------|
+| GPIO6  | NE crank       | Digital  | A21 / A9           | MAX9926 VR-modul + 10k pull-up | Påkrævet               |
+| GPIO5  | IGT ignition   | Digital  | A6 IGT1            | 10 k / 18 k (5 V)            | Påkrævet                 |
+| GPIO10 | CAL knap       | Digital  | –                  | Intern pull-up               | Påkrævet                 |
+| GPIO2  | MAP sensor     | ADC1_CH2 | A4 PIM             | 10 k / 18 k (5 V)            | Valgfri, auto-detekteret |
+| GPIO15 | Fuel injektor  | Digital  | A12 #10            | 33 k / 10 k + BAT54S         | Valgfri, auto-detekteret |
+| GPIO23 | IAC ventil PWM | Digital  | A14 RSO            | 33 k / 10 k + BAT54S         | Valgfri, auto-detekteret |
+| GPIO3  | Knock sensor   | ADC1_CH3 | ikke tilsluttet    | –                            | Samples, men ubrugt på 4E-FE |
+| GPIO21 | OLED SDA       | I2C      | –                  | –                            | Reserveret (OLED p.t. deaktiveret) |
+| GPIO20 | OLED SCL       | I2C      | –                  | –                            | Reserveret (OLED p.t. deaktiveret) |
 
 **Reserverede pins der ikke må bruges:**
 - GPIO12–14 → intern SPI flash i modulet
@@ -120,11 +138,11 @@ Auto-opdatering kan slås fra under Diagnostik i dashboardet.
 
 ## Signaloversigt
 
-- **NE**: Digital 36-2 crank trigger. Missing tooth = 0° reference (TDC).
-- **IGT**: Tændingsordre. Rising = dwell start. Falling = gnist / ignition event.
-- **MAP**: Analog tryk-sensor. 0.5 V = 10 kPa, 4.5 V = 105 kPa (Bosch 1-bar standard).
-- **INJ**: Fuel injektor puls. Pulsbredde = indsprøjtningsvarighed.
-- **IAC**: PWM signal fra ECU. Duty cycle = ventil-åbning %.
+- **NE**: VR-sensor på et 36-2 triggerhjul, konditioneret af MAX9926 til en digital puls. Første tand efter hullet = tand 0. Offset til TDC findes ved kalibrering.
+- **IGT**: Tændingsordre (5 V). Rising = dwell start. Falling = gnist / ignition event. IGT1 tænder cyl. 1+4 (wasted spark), én gang pr. omdrejning.
+- **MAP**: Analog tryk-sensor (Toyota PIM). Standard-preset: 1,16 V = 20 kPa, 3,71 V = 105 kPa.
+- **INJ**: Fuel injektor puls (gruppe #10 = cyl. 1+3). Pulsbredde = indsprøjtningsvarighed.
+- **IAC**: PWM signal fra ECU til den 1-spolede rotary solenoid (RSO/RSD). Duty cycle = ventil-åbning %.
 - **Knock**: Analog resonanssignal. Peak-to-peak amplitude over 64 ADC-samples.
 
 ## Serial Monitor (115 200 baud)
@@ -168,9 +186,10 @@ Se [`firmware/platformio.ini`](firmware/platformio.ini) for detaljer.
 
 | Symptom | Mulig årsag | Løsning |
 |---------|-------------|---------|
-| RPM = 0, Sync = 0 | NE signal når ikke ESP32 | Tjek spændingsdeler på GPIO6 + GND fælles med ECU |
+| RPM = 0, Sync = 0 | NE signal når ikke ESP32 | Tjek MAX9926 (5 V forsyning, IN+/IN− på A21/A9, pull-up på OUT) + GND fælles med ECU |
 | RPM OK, Sync = 0 | Missing tooth ikke detekteret | Kør motoren over 500 RPM nogle sek. |
-| Advance ser forkert ud | Offset ikke kalibreret | Tryk CAL ved idle (motoren 10° BTDC) |
+| Advance ser forkert ud | Offset ikke kalibreret | Slå S1 til (TE1–E1), tryk CAL ved varm tomgang, slå S1 fra |
+| IGT/dwell = 0 | IGT når ikke HIGH-niveau | IGT er 5 V – brug 10k/18k, ikke 33k/10k |
 | MAP-kort vises ikke | Sensor ikke aktiv | Sensor skal levere 0.24–3.06 V på GPIO2 |
 | Kan ikke finde IgnLogger WiFi | ESP32 ikke booted | Tjek USB-strøm, kig efter "AP ready" på serial |
 | Browser viser ikke captive portal | Manuel tilgang | Tast http://192.168.4.1 direkte |
