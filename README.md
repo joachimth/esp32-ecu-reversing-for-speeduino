@@ -57,6 +57,23 @@ IGT1 / PIM (5 V):                 INJ #10 / RSO (12 V + induktive spidser):
 | GPIO21 | OLED SDA       | –                     | (ingen – I2C 3.3 V)          |
 | GPIO20 | OLED SCL       | –                     | (ingen – I2C 3.3 V)          |
 
+**Ledningsfarver og kontrolmåling (ECU-tilgangsledninger)**
+
+Farver fra Haynes diagram 39, sammenholdt med autoelectric.ru. Identificér altid ledningen på **pin-position** og bekræft med **kontrolmålingen**. Farven er kun en ekstra kontrol: der er fx flere sorte ledninger i stikket (A10 OX, A12 #10, B1 TAC, B9 +B). Stikbilleder er tegnet fra ECU'ens side, så rækkefølgen er spejlvendt, når du arbejder bagfra på ledningsnettets stik.
+
+| ECU-pin | Signal | Farve (Haynes) | autoelectric | Kontrolmåling før splejsning |
+|---|---|---|---|---|
+| A21 | NE+ | hvid (W) | sort (sw) | **Kilderne er uenige.** ECU frakoblet: 985–1600 Ω mellem A21 og A9 |
+| A9 | NE− | skærmet | hvid (ws) | Se A21. Splejs uden at bryde skærmen |
+| A6 | IGT1 | gul-grøn (Y-G) | ge-gn | Tomgang: lav DC-middelværdi, under ca. 1 V (korte pulser) |
+| A4 | PIM | lysegrøn-rød (LG-R) | hgn-rt | Tænding til, motor stoppet: 3,3–3,9 V. Falder ved tomgang |
+| A12 | #10 injektor 1+3 | sort (B) | sw | Tænding til, motor stoppet: ca. 12 V |
+| A14 | RSO tomgangsventil | sort-blå (B-L) | sw-bl | Motor i gang: skiftende middelværdi mellem 0 og 12 V |
+| A2 | TE1 | blå-hvid (L-W) | bl-ws | Tænding til: 9–14 V mod stel |
+| A24 | E1 stel | brun (BR) | br | 0 V og under 1 Ω mod chassis |
+
+Splejs uden at skære ledningen over (afisoleret "vindue" med lodning eller T-tap), så original-ECU'en kører uforstyrret. Byttes NE+ og NE− på MAX9926, trigger den på den modsatte flanke. Det fjernes af TE1-kalibreringen, men giver det ustabil sync, så byt de to.
+
 **S1 (CAL-mode):** vippekontakt mellem **A2 TE1** og **A24 E1**. Når den er slået til, låser OEM-ECU'en tændingen på 10° BTDC (8–12°).
 
 **Må ikke tilsluttes:** THW og THA (NTC'er med pull-up i ECU'en – en ekstra deler ændrer, hvad OEM-ECU'en læser), KNK1 (piezo, højimpedant).

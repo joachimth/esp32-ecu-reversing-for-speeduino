@@ -41,6 +41,7 @@ IGT1 (A6) / PIM (A4), 5V:      SIG ---[10k]---+--- GPIO
                                               |
                                              GND
 ```
+- **Ledningsfarver (Haynes):** A21 NE+ hvid, A9 NE− skærmet, A6 IGT1 gul-grøn, A4 PIM lysegrøn-rød, A12 #10 sort, A14 RSO sort-blå, A2 TE1 blå-hvid, A24 E1 brun. NE-parrets farver er uenige mellem Haynes og autoelectric.ru (A21 sort / A9 hvid). Identificér på pin-position + kontrolmåling (tabel i README).
 - **S1 (CAL-mode):** vippekontakt A2 TE1 ↔ A24 E1. OEM-ECU'en låser så tændingen på 10° BTDC.
 - **GND:** A24 E1. Forsyning fra powerbank på USB-C, ikke bilens 12 V.
 - **Må ikke tilsluttes:** THW/THA (NTC med pull-up i ECU'en), KNK1 (højimpedant piezo).
