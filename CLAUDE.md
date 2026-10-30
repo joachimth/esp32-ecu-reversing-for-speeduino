@@ -242,6 +242,12 @@ docs/
   wiring-4e-fe.svg      ledningsdiagram: Toyota 4E-FE ECU-stik → interface → ESP32-C5
   manifest.json         ESP Web Tools manifest → releases/latest
 
+toyota-4e-fe/
+  README.md             bil/ECU-fakta, adapter REV2-tjek, tune-noter, specifikationer
+  Plan_maaling_af_OEM-kort.md   måleplan + omregning til VE-/tændingstabeller
+  OEM-aflytning_ESP32-C5.html   ledningsdiagram + procedure (standalone side)
+  ecu/ adapter/ speeduino/ dyno/ tools/   pinout, adapter-diagram/ODS, tune+logs, dyno, mlg→csv
+
 .github/workflows/
   build.yml             CI: 4 jobs → build / deploy-pages / auto-release (main) / release (tag)
 ```

@@ -1,0 +1,43 @@
+Toyota pin;Signal;Funktion;Ledningsfarve (Haynes);Speeduino IDC (v0.4);Speeduino funktion;Note
+A1;—;Tom;;—;—;
+A2;TE1;Diagnose (TE1–E1 bro = fast 10° tænding);L-W;NC;—;Behold til OEM-måling
+A3;THW;Kølevandstemp. NTC;W;19;CLT;
+A4;PIM;MAP-sensor signal (OEM);LG-R;11 (kun hvis OEM-MAP bruges);MAP;Ellers: intern MPX4250 via slange, og A4 NC
+A5;THA;Indsugningsluft temp. NTC;Y-B;20;IAT;
+A6;IGT1;Tænding spole 1 (cyl. 1+4);Y-G;7;IGN1;5 V logik, høj = dwell
+A7;—;Tom;;—;—;
+A8;IGF;Tændingsbekræftelse;L-Y;NC;—;Bruges ikke af Speeduino
+A9;NE-;Krumtapsensor (VR) minus;skærmet;27;VR1-;
+A10;OX;Lambdasonde (smalbånd);B;21 (kun ved smalbånd);O2;Med bredbånd: controllerens 0–5 V → 21
+A11;STA;Startsignal;B-W;NC;—;Valgfri
+A12;#10;Injektorgruppe 1 = cyl. 1+3;B;1 (+40);INJ1;Lavside-udgang
+A13;E01;Effekt-stel;BR;9/10;GND;
+A14;RSO/RSD;Tomgangsventil (1-spolet rotary solenoid);B-L;37;PWM Idle;Ventilens pin 2 får +12 V fra EFI-relæ
+A15;TE2;Diagnose;G-W;NC;—;
+A16;E2;Sensor-stel (THW, THA, TPS, PIM);BR;23 (eller 12);Sensor GND;Kritisk: ellers flyder alle sensorer
+A17;VTA;TPS signal;LG;22;TPS;
+A18;VC;5 V sensorforsyning;Y;28 (eller 13);5V;
+A19;IGT2;Tænding spole 2 (cyl. 2+3);R-L;34;IGN2;
+A20;CF;Køleventilator relæ;LG-B;15;Fan (proto 2);Kræver proto-udgang monteret
+A21;NE+;Krumtapsensor (VR) plus, 36-2;W;25;VR1+;
+A22;—;Tom;;—;—;
+A23;KNK1;Bankesensor;B skærmet;NC;—;Speeduino v0.4 har ingen knock-input
+A24;E1;ECU stel;BR;9/10;GND;
+A25;#20;Injektorgruppe 2 = cyl. 2+4;Y;2 (+39);INJ2;
+A26;HT;Lambdasonde varmelegeme (lavside);P;NC / relæ;—;~1–2 A: ikke direkte på proto-udgang
+B1;TAC;Omdrejningstæller;B;17;Tacho (proto 4);
+B2;BATT;Permanent +12 V;R-W;NC;—;
+B3;IMI;Immobiliser ind;G;NC;—;Speeduino ignorerer immobiliser
+B4;FC;Benzinpumpe (C/OPN-relæ, lavside);G-R;16;Fuel pump (proto 3);
+B5;—;Tom;;—;—;
+B6;—;Tom;;—;—;
+B7;—;Tom;;—;—;
+B8;NSW;Neutral/start;B-W;NC;—;
+B9;+B;12 V fra EFI-relæ (tænding);B;12 V forsyning;12V ind;"v0.4 IDC har ingen 12 V-pin; føres separat"
+B10;W;Check engine lampe;R-Y;NC;—;Valgfri
+B11;IMO;Immobiliser ud;V;NC;—;
+B12;AC1;A/C signal ud;Y-R;NC;—;
+B13;SPD;Hastighedssignal;V-W;NC;—;Valgfri
+B14;ACT;A/C anmodning;R-L;NC;—;
+B15;ELS;Elektrisk belastning;G;NC;—;
+B16;VF;Diagnose;R-W;NC;—;

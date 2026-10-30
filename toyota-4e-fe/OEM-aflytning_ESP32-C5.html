@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4E-FE OEM-aflytning</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&display=swap">
+<style>
+/* Layout: one technical sheet – schematic first, then the tables you need at the car */
+:root{
+  --paper:#f3f5f7; --sheet:#ffffff; --ink:#18232f; --muted:#5c6b7a; --line:#c9d2db;
+  --copper:#b4531f; --ground:#2f6b4f; --warn:#a1281e; --warnbg:#fbeceb; --chip:#e6ebf0;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#11171d; --sheet:#182029; --ink:#e3e9ef; --muted:#93a3b3; --line:#33414e;
+  --copper:#e88a52; --ground:#6fc29a; --warn:#ff8a7a; --warnbg:#3a1f1d; --chip:#24303b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#11171d; --sheet:#182029; --ink:#e3e9ef; --muted:#93a3b3; --line:#33414e;
+  --copper:#e88a52; --ground:#6fc29a; --warn:#ff8a7a; --warnbg:#3a1f1d; --chip:#24303b; color-scheme:dark}
+body{background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1{font-size:1.75rem;line-height:1.2;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:1.1rem;margin:0 0 10px;text-wrap:balance}
+.lead{max-width:68ch;color:var(--muted);margin:6px 0 0}
+.tag{font:600 .72rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--copper)}
+.sheet{background:var(--sheet);border:1px solid var(--line);border-radius:6px;padding:18px}
+.scroll{overflow-x:auto}
+svg{display:block;min-width:900px;width:100%;height:auto}
+svg .box{fill:none;stroke:var(--ink);stroke-width:1.5}
+svg .esp{stroke:var(--ink)}
+svg .h{font:600 14px var(--sans);fill:var(--ink)}
+svg .pin{font:13px var(--mono);fill:var(--ink)}
+svg .pn{font-weight:600;fill:var(--copper)}
+svg .muted{fill:var(--muted)}
+svg .col{font:11px var(--sans);fill:var(--muted)}
+svg .v{font:11.5px var(--mono);fill:var(--muted)}
+svg .net{font:600 11px var(--mono);fill:var(--ink)}
+svg .w{stroke:var(--ink);stroke-width:1.4;fill:none}
+svg .sig{stroke:var(--copper);stroke-width:2}
+svg .gndw{stroke:var(--ground);stroke-width:2}
+svg .r{fill:var(--sheet);stroke:var(--ink);stroke-width:1.4}
+svg .d{fill:var(--ink)}
+svg .dio{fill:var(--ink);stroke:var(--ink)}
+svg .ic{fill:var(--chip);stroke:var(--ink);stroke-width:1.4}
+svg .ict{font:600 14px var(--mono);fill:var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.grid>*{min-width:0}
+.warn{background:var(--warnbg);border-left:3px solid var(--warn);padding:12px 14px;border-radius:0 4px 4px 0}
+.warn strong{color:var(--warn)}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 .72rem var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td code,li code,p code{font:.86em var(--mono);background:var(--chip);padding:1px 4px;border-radius:3px}
+td.m{font-family:var(--mono);white-space:nowrap;font-variant-numeric:tabular-nums}
+ol,ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px}
+li{max-width:75ch}
+.legend{display:flex;flex-wrap:wrap;gap:18px;font-size:.82rem;color:var(--muted);margin-top:10px}
+.legend span::before{content:"";display:inline-block;width:22px;height:0;border-top:2px solid var(--copper);vertical-align:middle;margin-right:6px}
+.legend .g::before{border-color:var(--ground)}
+.legend .k::before{border-color:var(--ink);border-top-width:1.4px}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="tag">Corolla E11 · 4E-FE · ECU 89661-1A760</div>
+    <h1>Aflytning af original-ECU'en med ESP32-C5</h1>
+    <p class="lead">Loggeren fra <code>esp32-ecu-reversing-for-speeduino</code> sidder parallelt på original-ECU'ens stik, mens bilen kører på den originale ECU. Den lytter kun og må ikke belaste signalerne. REV2-adapteren erstatter ECU'en og kan derfor ikke bruges til dette. Tap ind bag på OEM-stikket med backprobe-nåle eller et T-kabel.</p>
+  </header>
+
+  <section class="sheet" aria-label="Ledningsdiagram">
+    <div class="scroll"><svg viewBox="0 0 1100 740" role="img" aria-label="Ledningsdiagram fra Toyota 4E-FE ECU-stik til ESP32-C5 logger"><rect class="box" x="20" y="40" width="210" height="665" rx="4"/><text class="h" x="125" y="30" text-anchor="middle">OEM-ECU-stik (bagfra)</text><rect class="box esp" x="830" y="40" width="250" height="665" rx="4"/><text class="h" x="955" y="30" text-anchor="middle">ESP32-C5 DevKitC</text><text class="pin" x="214" y="94" text-anchor="end"><tspan class="pn">A21</tspan> NE+</text><text class="col" x="214" y="110" text-anchor="end">hvid/sort – mål!</text><circle class="d" cx="230" cy="90" r="3.2"/><text class="pin" x="214" y="144" text-anchor="end"><tspan class="pn">A9</tspan> NE−</text><text class="col" x="214" y="160" text-anchor="end">skærmet (hvid?)</text><circle class="d" cx="230" cy="140" r="3.2"/><line class="w sig" x1="230" y1="90" x2="380" y2="90"/><line class="w sig" x1="230" y1="140" x2="380" y2="140"/><rect class="ic" x="380" y="66" width="150" height="98" rx="3"/><text class="ict" x="455" y="104" text-anchor="middle">MAX9926</text><text class="v" x="455" y="122" text-anchor="middle">VR-modul</text><text class="v" x="386" y="86">IN+</text><text class="v" x="386" y="152">IN−</text><text class="v" x="524" y="111" text-anchor="end">OUT</text><line class="w" x1="455" y1="66" x2="455" y2="52"/><text class="net" x="455" y="47" text-anchor="middle">5V</text><line class="w" x1="455" y1="164" x2="455" y2="176"/><line class="w" x1="445" y1="176" x2="465" y2="176"/><line class="w" x1="449" y1="180" x2="461" y2="180"/><line class="w" x1="453" y1="184" x2="457" y2="184"/><line class="w sig" x1="530" y1="115" x2="830" y2="115"/><circle class="d" cx="640" cy="115" r="3.2"/><line class="w" x1="640" y1="115" x2="640" y2="103"/><rect class="r" x="633" y="69" width="14" height="34"/><line class="w" x1="640" y1="69" x2="640" y2="58"/><text class="net" x="640" y="53" text-anchor="middle">3V3</text><text class="v" x="652" y="90">10k pull-up</text><text class="pin" x="844" y="119"><tspan class="pn">GPIO6</tspan> NE crank</text><circle class="d" cx="830" cy="115" r="3.2"/><text class="pin" x="214" y="239" text-anchor="end"><tspan class="pn">A6</tspan> IGT1</text><text class="col" x="214" y="255" text-anchor="end">gul-grøn (Y-G)</text><circle class="d" cx="230" cy="235" r="3.2"/><line class="w sig" x1="230" y1="235" x2="350" y2="235"/><line class="w" x1="350" y1="235" x2="362" y2="235"/><rect class="r" x="362" y="228" width="36" height="14"/><line class="w" x1="398" y1="235" x2="410" y2="235"/><text class="v" x="380" y="223" text-anchor="middle">10k</text><line class="w sig" x1="410" y1="235" x2="830" y2="235"/><circle class="d" cx="470" cy="235" r="3.2"/><line class="w" x1="470" y1="235" x2="470" y2="247"/><rect class="r" x="463" y="247" width="14" height="34"/><line class="w" x1="470" y1="281" x2="470" y2="293"/><text class="v" x="482" y="269">18k</text><line class="w" x1="460" y1="293" x2="480" y2="293"/><line class="w" x1="464" y1="297" x2="476" y2="297"/><line class="w" x1="468" y1="301" x2="472" y2="301"/><text class="pin" x="844" y="239"><tspan class="pn">GPIO5</tspan> IGT</text><circle class="d" cx="830" cy="235" r="3.2"/><text class="pin" x="214" y="339" text-anchor="end"><tspan class="pn">A4</tspan> PIM</text><text class="col" x="214" y="355" text-anchor="end">lysegrøn-rød (LG-R)</text><circle class="d" cx="230" cy="335" r="3.2"/><line class="w sig" x1="230" y1="335" x2="350" y2="335"/><line class="w" x1="350" y1="335" x2="362" y2="335"/><rect class="r" x="362" y="328" width="36" height="14"/><line class="w" x1="398" y1="335" x2="410" y2="335"/><text class="v" x="380" y="323" text-anchor="middle">10k</text><line class="w sig" x1="410" y1="335" x2="830" y2="335"/><circle class="d" cx="470" cy="335" r="3.2"/><line class="w" x1="470" y1="335" x2="470" y2="347"/><rect class="r" x="463" y="347" width="14" height="34"/><line class="w" x1="470" y1="381" x2="470" y2="393"/><text class="v" x="482" y="369">18k</text><line class="w" x1="460" y1="393" x2="480" y2="393"/><line class="w" x1="464" y1="397" x2="476" y2="397"/><line class="w" x1="468" y1="401" x2="472" y2="401"/><text class="pin" x="844" y="339"><tspan class="pn">GPIO2</tspan> MAP (ADC)</text><circle class="d" cx="830" cy="335" r="3.2"/><text class="pin" x="214" y="449" text-anchor="end"><tspan class="pn">A12</tspan> #10</text><text class="col" x="214" y="465" text-anchor="end">sort (B)</text><circle class="d" cx="230" cy="445" r="3.2"/><line class="w sig" x1="230" y1="445" x2="350" y2="445"/><line class="w" x1="350" y1="445" x2="362" y2="445"/><rect class="r" x="362" y="438" width="36" height="14"/><line class="w" x1="398" y1="445" x2="410" y2="445"/><text class="v" x="380" y="433" text-anchor="middle">33k</text><line class="w sig" x1="410" y1="445" x2="830" y2="445"/><circle class="d" cx="470" cy="445" r="3.2"/><line class="w" x1="470" y1="445" x2="470" y2="457"/><rect class="r" x="463" y="457" width="14" height="34"/><line class="w" x1="470" y1="491" x2="470" y2="503"/><text class="v" x="482" y="479">10k</text><line class="w" x1="460" y1="503" x2="480" y2="503"/><line class="w" x1="464" y1="507" x2="476" y2="507"/><line class="w" x1="468" y1="511" x2="472" y2="511"/><circle class="d" cx="560" cy="445" r="3.2"/><line class="w" x1="560" y1="445" x2="560" y2="419"/><polygon class="dio" points="553,431 567,431 560,421"/><line class="w" x1="553" y1="420" x2="567" y2="420"/><text class="net" x="560" y="415" text-anchor="middle">3V3</text><line class="w" x1="560" y1="445" x2="560" y2="471"/><polygon class="dio" points="553,469 567,469 560,459"/><line class="w" x1="553" y1="458" x2="567" y2="458"/><line class="w" x1="550" y1="471" x2="570" y2="471"/><line class="w" x1="554" y1="475" x2="566" y2="475"/><line class="w" x1="558" y1="479" x2="562" y2="479"/><text class="v" x="572" y="487">BAT54S</text><text class="pin" x="844" y="449"><tspan class="pn">GPIO15</tspan> INJ cyl. 1+3</text><circle class="d" cx="830" cy="445" r="3.2"/><text class="pin" x="214" y="564" text-anchor="end"><tspan class="pn">A14</tspan> RSO</text><text class="col" x="214" y="580" text-anchor="end">sort-blå (B-L)</text><circle class="d" cx="230" cy="560" r="3.2"/><line class="w sig" x1="230" y1="560" x2="350" y2="560"/><line class="w" x1="350" y1="560" x2="362" y2="560"/><rect class="r" x="362" y="553" width="36" height="14"/><line class="w" x1="398" y1="560" x2="410" y2="560"/><text class="v" x="380" y="548" text-anchor="middle">33k</text><line class="w sig" x1="410" y1="560" x2="830" y2="560"/><circle class="d" cx="470" cy="560" r="3.2"/><line class="w" x1="470" y1="560" x2="470" y2="572"/><rect class="r" x="463" y="572" width="14" height="34"/><line class="w" x1="470" y1="606" x2="470" y2="618"/><text class="v" x="482" y="594">10k</text><line class="w" x1="460" y1="618" x2="480" y2="618"/><line class="w" x1="464" y1="622" x2="476" y2="622"/><line class="w" x1="468" y1="626" x2="472" y2="626"/><circle class="d" cx="560" cy="560" r="3.2"/><line class="w" x1="560" y1="560" x2="560" y2="534"/><polygon class="dio" points="553,546 567,546 560,536"/><line class="w" x1="553" y1="535" x2="567" y2="535"/><text class="net" x="560" y="530" text-anchor="middle">3V3</text><line class="w" x1="560" y1="560" x2="560" y2="586"/><polygon class="dio" points="553,584 567,584 560,574"/><line class="w" x1="553" y1="573" x2="567" y2="573"/><line class="w" x1="550" y1="586" x2="570" y2="586"/><line class="w" x1="554" y1="590" x2="566" y2="590"/><line class="w" x1="558" y1="594" x2="562" y2="594"/><text class="v" x="572" y="602">BAT54S</text><text class="pin" x="844" y="564"><tspan class="pn">GPIO23</tspan> IAC PWM</text><circle class="d" cx="830" cy="560" r="3.2"/><text class="pin" x="214" y="629" text-anchor="end"><tspan class="pn">A2</tspan> TE1</text><text class="col" x="214" y="645" text-anchor="end">blå-hvid (L-W)</text><circle class="d" cx="230" cy="625" r="3.2"/><text class="pin" x="214" y="664" text-anchor="end"><tspan class="pn">A24</tspan> E1</text><text class="col" x="214" y="680" text-anchor="end">brun (BR)</text><circle class="d" cx="230" cy="660" r="3.2"/><line class="w" x1="230" y1="625" x2="320" y2="625"/><circle class="d" cx="320" cy="625" r="3"/><line class="w" x1="320" y1="625" x2="352" y2="609"/><circle class="d" cx="356" cy="625" r="3"/><line class="w" x1="356" y1="625" x2="380" y2="625"/><line class="w" x1="380" y1="625" x2="380" y2="660"/><text class="v" x="338" y="600" text-anchor="middle">S1 "CAL-mode"</text><line class="w gndw" x1="230" y1="660" x2="830" y2="660"/><circle class="d" cx="380" cy="660" r="3.2"/><text class="pin" x="844" y="664"><tspan class="pn">GND</tspan> fælles stel</text><circle class="d" cx="830" cy="660" r="3.2"/><line class="w" x1="830" y1="625" x2="760" y2="625"/><circle class="d" cx="760" cy="625" r="3"/><line class="w" x1="760" y1="625" x2="730" y2="610"/><circle class="d" cx="726" cy="625" r="3"/><line class="w" x1="726" y1="625" x2="700" y2="625"/><line class="w" x1="700" y1="625" x2="700" y2="660"/><text class="v" x="743" y="602" text-anchor="middle">CAL-knap</text><circle class="d" cx="700" cy="660" r="3.2"/><text class="pin" x="844" y="629"><tspan class="pn">GPIO10</tspan> CAL</text><circle class="d" cx="830" cy="625" r="3.2"/><text class="pin muted" x="844" y="511"><tspan class="pn">GPIO3</tspan> knock — ikke tilsluttet</text><text class="v" x="844" y="728">USB-C ← powerbank (ikke bilens 12 V)</text><text class="v" x="844" y="185">5V-pin → MAX9926 VCC</text></svg></div>
+    <div class="legend"><span>signal fra ECU</span><span class="g">fælles stel (E1)</span><span class="k">forsyning / reference</span></div>
+  </section>
+
+  <div class="warn"><strong>Tre afvigelser fra repoets README.</strong> NE er en VR-sensor (± vekselspænding, stiger med omdrejningstallet) og kan ikke tages direkte gennem en 10k/18k-deler. Den skal gennem en VR-konditionering (MAX9926). IGT er et 5 V-signal: README'ens 33k/10k giver kun ca. 1,2 V, så ESP'en ser aldrig HIGH. Brug 10k/18k. Injektor og tomgangsventil giver induktive spidser på 40–80 V, så de skal have clamp-dioder mod 3V3 og GND.</div>
+
+  <div class="grid">
+    <section class="sheet">
+      <h2>Forbindelser</h2>
+      <table>
+        <thead><tr><th>Signal</th><th>ECU-pin</th><th>Interface</th><th>ESP</th></tr></thead>
+        <tbody>
+          <tr><td>NE+ / NE− (36-2)</td><td class="m">A21 / A9</td><td>MAX9926 IN+/IN−, OUT med 10k pull-up til 3V3</td><td class="m">GPIO6</td></tr>
+          <tr><td>IGT1 (spole cyl. 1+4)</td><td class="m">A6</td><td>10k serie, 18k til GND</td><td class="m">GPIO5</td></tr>
+          <tr><td>PIM (MAP)</td><td class="m">A4</td><td>10k serie, 18k til GND</td><td class="m">GPIO2</td></tr>
+          <tr><td>#10 (injektor cyl. 1+3)</td><td class="m">A12</td><td>33k serie, 10k til GND, BAT54S clamp</td><td class="m">GPIO15</td></tr>
+          <tr><td>RSO (tomgangsventil)</td><td class="m">A14</td><td>33k serie, 10k til GND, BAT54S clamp</td><td class="m">GPIO23</td></tr>
+          <tr><td>TE1 → E1 (CAL-mode)</td><td class="m">A2 → A24</td><td>Vippekontakt S1</td><td class="m">—</td></tr>
+          <tr><td>E1 stel</td><td class="m">A24</td><td>Direkte</td><td class="m">GND</td></tr>
+          <tr><td>CAL-knap</td><td class="m">—</td><td>Trykknap til GND</td><td class="m">GPIO10</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="sheet">
+      <h2>Må ikke tilsluttes</h2>
+      <ul>
+        <li><strong>NE− til stel.</strong> NE− er ECU'ens reference, ikke chassis. MAX9926 måler differentielt, så OEM-signalet forstyrres ikke.</li>
+        <li><strong>THW og THA.</strong> Begge er NTC'er med pull-up i ECU'en. En ekstra deler til stel ændrer, hvad original-ECU'en læser, og dermed både brændstof og tænding. Log kun med fuldt varm motor.</li>
+        <li><strong>KNK1.</strong> Piezo-sensoren er højimpedant, og en 43k-deler dæmper det signal, original-ECU'en bruger til bankestyring. GPIO3 forbliver ubrugt i første omgang.</li>
+        <li><strong>Bilens 12 V til ESP'en.</strong> Brug en powerbank på USB-C. Så undgår du stelsløjfer og støj fra generatoren.</li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section class="sheet">
+      <h2>Komponenter</h2>
+      <table>
+        <thead><tr><th>Antal</th><th>Del</th><th>Bruges til</th></tr></thead>
+        <tbody>
+          <tr><td class="m">1</td><td>MAX9926 VR-modul (fx et Speeduino VR-board, 5 V)</td><td>NE</td></tr>
+          <tr><td class="m">2</td><td>10k + 18k, ¼ W</td><td>IGT1, PIM</td></tr>
+          <tr><td class="m">2</td><td>33k + 10k, ¼ W</td><td>#10, RSO</td></tr>
+          <tr><td class="m">1</td><td>10k</td><td>Pull-up på MAX9926-udgang</td></tr>
+          <tr><td class="m">2</td><td>BAT54S (eller 2× 1N4148 pr. kanal)</td><td>Clamp på INJ og IAC</td></tr>
+          <tr><td class="m">1</td><td>Vippekontakt</td><td>S1, TE1–E1</td></tr>
+          <tr><td class="m">1</td><td>Trykknap</td><td>CAL</td></tr>
+          <tr><td class="m">7</td><td>Backprobe-nåle eller T-kabel</td><td>A2, A4, A6, A9, A12, A14, A21, A24</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="sheet">
+      <h2>Fremgangsmåde i bilen</h2>
+      <ol>
+        <li>Tænding fra. Sæt backprobe-nålene i bag på A-stikket. Tjek ledningsfarven mod tabellen.</li>
+        <li>Tænding til, motor stoppet. Dashboardet skal vise MAP-spænding på ca. 3,3–3,9 V (luftens tryk) og IGT, INJ og IAC i ro.</li>
+        <li>Start motoren og lad den køre, til køleventilatoren har slået til.</li>
+        <li>Slå S1 til. Original-ECU'en låser nu tændingen på 10° BTDC (8–12°). Vent 5 s, tryk på CAL, og slå S1 fra igen.</li>
+        <li>Indstil MAP-kurven under <code>/config</code> (se næste afsnit). Tjek, at tomgangen viser 21–48 kPa.</li>
+        <li>Start log. Hold faste omdrejningstal fra 1500 til 6000 i trin på 500 ved let, mellem og fuld belastning, 3–5 s pr. punkt. Kør desuden et fuldgasstræk i 3. gear.</li>
+      </ol>
+    </section>
+  </div>
+
+  <section class="sheet">
+    <h2>Rettelser i firmwaren</h2>
+    <ul>
+      <li><strong>MAP-preset til Toyota-vakuumsensoren.</strong> Ud fra 4A-FE-manualen er hældningen ca. 0,03 V/kPa: <code>mapVmin=1.16</code> → <code>20 kPa</code>, <code>mapVmax=3.71</code> → <code>105 kPa</code>. Det er et startpunkt. Justér, så motor-stoppet viser dagens lufttryk.</li>
+      <li><strong>Tandperioden efter hullet.</strong> I <code>crankISR()</code> bliver <code>toothPeriodUs</code> sat til hele hullets varighed (3 tandperioder). Brøken for et IGT-event i tand 0 regnes derfor op til ca. 6,7° forkert. Gem <code>dt/3</code>, når hullet detekteres.</li>
+      <li><strong>Tomgangsventil.</strong> TODO'en om 4-leder-stepper passer ikke til E11-modellen. Den har en 1-spolet rotary solenoid (RSD), som styres med PWM, så den nuværende duty-måling er rigtig.</li>
+      <li><strong>Injektor 2+4.</strong> Firmwaren logger kun #10 (cyl. 1+3). Det er nok til VE-tabellen, fordi grupperne er ens. En valgfri kanal til #20 (A25) kan bekræfte det.</li>
+      <li><strong>README og CLAUDE.md.</strong> Ret delerne for NE og IGT og tilføj clamp-dioderne, så dokumentationen passer med diagrammet.</li>
+    </ul>
+  </section>
+</div>
+
+</body>
+</html>

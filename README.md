@@ -153,6 +153,10 @@ Auto-opdatering kan slås fra under Diagnostik i dashboardet.
 
 ---
 
+## Toyota 4E-FE projektdata
+
+Mappen [`toyota-4e-fe/`](toyota-4e-fe/) indeholder bilens verificerede ECU-pinout, Speeduino-adapterens diagram og tjek (REV2), Speeduino-tunen, dyno-kørsler, måleplanen for OEM-kortene og et værktøj til at konvertere TunerStudio-logs til CSV.
+
 ## Signaloversigt
 
 - **NE**: VR-sensor på et 36-2 triggerhjul, konditioneret af MAX9926 til en digital puls. Første tand efter hullet = tand 0. Offset til TDC findes ved kalibrering.
