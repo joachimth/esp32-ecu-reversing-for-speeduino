@@ -1,33 +1,42 @@
 # OEM Ignition Logger
 
 ## Mål
-Reverse engineer Toyota 4E-FE OEM ECU via signalanalyse på NE (crank) og IGT (ignition).
+Reverse engineer Toyota 4E-FE OEM ECU via signalanalyse på NE (crank) og IGT (ignition), plus MAP, injektor, tomgangsventil og THW/THA-temperaturer.
 
 ## Hardware
-- **Board**: ESP32-C5-WROOM-1 (esp32-c5-devkitc-1)
+- **Board**: Waveshare ESP32-C5-WIFI6-KIT (ESP32-C5-WROOM-1 **N16R4**: 16 MB flash, 4 MB PSRAM). PlatformIO-board: `esp32-c5-devkitc-1`.
 
 ### Pin-oversigt (ESP32-C5)
 | Pin    | Signal         | Type      | Beskyttelse           | Bemærkning        |
 |--------|----------------|-----------|-----------------------|-------------------|
-| GPIO6  | NE crank       | Digital   | MAX9926 VR-modul, OUT + 10k pull-up til 3V3 | Påkrævet (ECU A21 NE+ / A9 NE−) |
-| GPIO5  | IGT ignition   | Digital   | 10k/18k deler (5V)    | Påkrævet (ECU A6 IGT1) |
-| GPIO10 | CAL knap       | Digital   | Intern pull-up        | Påkrævet          |
+| GPIO8  | NE crank       | Digital   | MAX9926 VR-modul, OUT + 10k pull-up til 3V3 | Påkrævet (ECU A21 NE+ / A9 NE−) |
+| GPIO9  | IGT ignition   | Digital   | 10k/18k deler (5V)    | Påkrævet (ECU A6 IGT1) |
+| GPIO10 | CAL knap       | Digital   | Intern pull-up        | Starter auto-kalibrering |
 | GPIO4  | MAP sensor     | ADC1_CH3  | 10k/18k deler (5V)    | Valgfri, auto-detekteret (ECU A4 PIM) |
-| GPIO15 | Fuel injektor  | Digital   | 33k/10k deler + BAT54S clamp (12V) | Valgfri, auto-detekteret (ECU A12 #10) |
+| GPIO3  | Kølevand (THW) | ADC1_CH2  | 1M/1.8M deler + 100 nF | Valgfri, auto-detekteret (ECU A3 THW) |
+| GPIO5  | Indsugning (THA) | ADC1_CH4 | 1M/1.8M deler + 100 nF | Valgfri, auto-detekteret (ECU A5 THA) |
+| GPIO24 | Fuel injektor  | Digital   | 33k/10k deler + BAT54S clamp (12V) | Valgfri, auto-detekteret (ECU A12 #10) |
 | GPIO23 | IAC ventil PWM | Digital   | 33k/10k deler + BAT54S clamp (12V) | Valgfri, auto-detekteret (ECU A14 RSO) |
-| GPIO3  | Knock sensor   | ADC1_CH2  | Ikke tilsluttet på 4E-FE | Altid samplet, men ubrugt (deler belaster OEM piezo) |
-| GPIO0  | OLED SDA       | I2C       | Ingen                  | Valgfri, auto-detekteret |
-| GPIO1  | OLED SCL       | I2C       | Ingen                  | Valgfri, auto-detekteret |
+| GPIO26 | TE1-styring    | Udgang    | PC817 optokobler, 330 Ω | HIGH = TE1–E1 brokoblet (kun under auto-kalibrering) |
+| GPIO0  | OLED SDA       | I2C       | Ingen                  | Deaktiveret |
+| GPIO1  | OLED SCL       | I2C       | Ingen                  | Deaktiveret |
+| –      | Knock          | –         | Ikke tilsluttet (`PIN_KNOCK = -1`) | Deler belaster OEM-ECU'ens piezo-signal |
 
-Reserverede pins der **ikke** må bruges (kilde: ESP-IDF GPIO summary for ESP32-C5 + arduino-esp32 `variants/esp32c5`): GPIO16–22 (SPI flash/PSRAM), GPIO13/14 (USB-JTAG), GPIO11/12 (UART0 TX/RX → Serial). Strapping-pins GPIO2, 7, 25, 27, 28 må ikke drives udefra (GPIO27 = RGB-LED, GPIO28 = BOOT-knap). ADC1 = GPIO1–6 (CH0–CH5).
+Pins der **ikke** må bruges (kilder: ESP-IDF GPIO summary for ESP32-C5, ESP32-C5-datablad, arduino-esp32 `variants/esp32c5`, Waveshare-diagram ESP32-C5-WIFI6-KIT-NXRX):
+- GPIO15 = SPICS1 (PSRAM chip select) – NC på moduler med PSRAM (N16R4/N16R8)
+- GPIO16–22 = SPI flash/PSRAM
+- GPIO13/14 = USB-JTAG. GPIO11/12 = UART0 TX/RX (CH343 → Serial)
+- GPIO6 = Waveshare BAT_ADC (200k/100k-deler + 2× 100 nF – ødelægger digitale flanker)
+- Strapping-pins GPIO2, 7, 25, 27, 28 må ikke drives udefra (GPIO27 = WS2812 RGB-LED, GPIO28 = BOOT-knap)
+- ADC1 = GPIO1–6 (CH0–CH5)
 
 ### Tilslutning til Toyota 4E-FE (Corolla E11, ECU 89661-1A760)
 Loggeren tappes **parallelt bag på OEM-ECU'ens stik**, mens bilen kører på original-ECU'en. Fuldt diagram: `docs/wiring-4e-fe.svg`.
 
 ```
 NE (VR-sensor, ± AC – aldrig en ren modstandsdeler, NE− må ikke til stel):
-  A21 NE+ → MAX9926 IN+,  A9 NE− → MAX9926 IN−,  OUT (open drain) → GPIO6 + 10k pull-up til 3V3
-  MAX9926 VCC = DevKit 5V-pin, GND = E1
+  A21 NE+ → MAX9926 IN+,  A9 NE− → MAX9926 IN−,  OUT (open drain) → GPIO8 + 10k pull-up til 3V3
+  MAX9926 VCC = boardets 5V-pin, GND = E1
 
 IGT1 (A6) / PIM (A4), 5V:      SIG ---[10k]---+--- GPIO
                                               |
@@ -35,26 +44,35 @@ IGT1 (A6) / PIM (A4), 5V:      SIG ---[10k]---+--- GPIO
                                               |
                                              GND
 
+THW (A3) / THA (A5), NTC:      SIG ---[1M]----+------+--- GPIO     (belastning < 0,5 % på OEM-målingen)
+                                              |      |
+                                            [1.8M] [100n]
+                                              |      |
+                                             GND    GND
+
 #10 (A12) / RSO (A14), 12V:    SIG ---[33k]---+---+--- GPIO
                                               |   |
                                              [10k] BAT54S → 3V3 / GND (clamp mod 40–80 V induktive spidser)
                                               |
                                              GND
+
+TE1 (A2):  GPIO26 ---[330]--- PC817 LED --- GND ;  PC817 C = A2 TE1, E = A24 E1
 ```
-- **Ledningsfarver (Haynes):** A21 NE+ hvid, A9 NE− skærmet, A6 IGT1 gul-grøn, A4 PIM lysegrøn-rød, A12 #10 sort, A14 RSO sort-blå, A2 TE1 blå-hvid, A24 E1 brun. NE-parrets farver er uenige mellem Haynes og autoelectric.ru (A21 sort / A9 hvid). Identificér på pin-position + kontrolmåling (tabel i README).
-- **S1 (CAL-mode):** vippekontakt A2 TE1 ↔ A24 E1. OEM-ECU'en låser så tændingen på 10° BTDC.
+- **Ledningsfarver (Haynes):** A21 NE+ hvid, A9 NE− skærmet, A6 IGT1 gul-grøn, A4 PIM lysegrøn-rød, A3 THW hvid, A5 THA gul-sort, A12 #10 sort, A14 RSO sort-blå, A2 TE1 blå-hvid, A24 E1 brun. NE-parrets farver er uenige mellem Haynes og autoelectric.ru (A21 sort / A9 hvid). Identificér på pin-position + kontrolmåling (tabel i README).
 - **GND:** A24 E1. Forsyning fra powerbank på USB-C, ikke bilens 12 V.
-- **Må ikke tilsluttes:** THW/THA (NTC med pull-up i ECU'en), KNK1 (højimpedant piezo).
+- **Må ikke tilsluttes:** KNK1 (højimpedant piezo).
 - IGT er 5 V: en 33k/10k-deler giver kun ~1,2 V og registreres aldrig som HIGH.
 
 ## Signallogik
 - **NE**: VR-sensor på 36-2 triggerhjul, konditioneret af MAX9926. Første tand efter hullet = tand 0; offset til TDC findes ved kalibrering.
-- **IGT**: Ignition command (5 V, IGT1 = cyl. 1+4, wasted spark). Rising = dwell start. Falling = spark / ignition event.
+- **IGT**: Ignition command (5 V, IGT1 = cyl. 1+4, wasted spark). Rising = dwell start. Falling = spark. `igtISR()` gemmer tand + brøkdel (heltal, ×1000) i selve interruptet ved den faldende flanke; advance beregnes ud fra den vinkel – ikke ud fra krumtappens position, når loggen sampler.
 - **MAP**: Analog tryk-sensor (Toyota PIM). Standard: 1.16V=20kPa, 3.71V=105kPa (Toyota 4E-FE preset, ~0.03 V/kPa).
 - **INJ**: Fuel injector puls (gruppe #10 = cyl. 1+3). Falling = start, Rising = slut. Pulsbredde = indsprøjtningsvarighed.
 - **IAC**: PWM signal fra ECU til 1-spolet rotary solenoid (RSO/RSD). Duty cycle = ventil-åbning %.
-- **Knock**: Analog resonanssignal (knock sensor). 64 ADC-læsninger → peak-to-peak amplitude 0–100%.
-- **OLED**: SSD1306 128×64 display. **Deaktiveret** – Wire.begin() crasher på ESP32-C5 eco2 pga. arduino-esp32 3.3.8 bruger legacy I2C driver API der ikke matcher C5 eco2 hardware. `oledOk = false` hardkodet. TODO: genaktiver når arduino-esp32 har native ESP32-C5 I2C HAL.
+- **THW / THA**: NTC med OEM-ECU'ens pull-up til 5 V. `R = Rpu·V/(5−V)`, temperatur via Steinhart-Hart fitted til Toyotas spec. `Rpu` kalibreres med `/temp/cal` (standard 2200 Ω).
+- **TE1**: GPIO26 HIGH → PC817 brokobler TE1–E1 → OEM-ECU'en låser tændingen på 10° BTDC. Kun aktiv under auto-kalibrering; altid LOW ved boot.
+- **Knock**: Ikke tilsluttet på 4E-FE (`PIN_KNOCK = -1`, `k = -1` i WebSocket, kortet skjules).
+- **OLED**: SSD1306 128×64 display på GPIO0/1. **Deaktiveret** (`oledOk = false`). Crashet skyldtes sandsynligvis, at SDA/SCL tidligere sad på flash-pins (GPIO21/20). Testes over USB før genaktivering.
 
 ## Auto-detektion af valgfrie sensorer
 | Sensor | Betingelse for "aktiv" |
@@ -62,23 +80,26 @@ IGT1 (A6) / PIM (A4), 5V:      SIG ---[10k]---+--- GPIO
 | MAP    | ADC-værdi i [300, 3800] (0.24V – 3.06V) |
 | INJ    | Puls registreret inden for 2 sekunder |
 | IAC    | Puls registreret inden for 2 sekunder |
-| Knock  | Altid samplet; niveau vises som 0–100% amplitude |
-| OLED   | **Deaktiveret** – `oledOk = false` hardkodet pga. ESP32-C5 I2C bug |
+| THW/THA | Sensor-spænding i [0,05 V, 4,90 V] (ellers `-99`) |
+| Knock  | Deaktiveret (`PIN_KNOCK = -1`) |
+| OLED   | **Deaktiveret** – `oledOk = false` hardkodet indtil test over USB |
 
 Web-dashboardet viser kun sensor-kort når data er validt. Skjules automatisk ved frakobling.
 
 ## Formler
 ```
-rawAngle   = tooth * 10 + (dt / toothPeriod) * 10
-advance    = calibOffset - rawAngle        [° BTDC]
+sparkAngle = sparkTooth * 10 + sparkFracQ / 100        [° efter tand 0, ved IGT faldende flanke]
+             (sparkFracQ = (t_spark - t_tooth) * 1000 / toothPeriod, maks 1000 – 3000 i hullet efter tand 33)
+advance    = wrap180(calibOffset - sparkAngle)          [° BTDC]
 rpm        = 60_000_000 / (toothPeriodUs * 36)
-dwell      = (igtFall_us - igtRise_us) / 1000   [ms]
-vGpio      = analogRead(PIN_MAP) * 3.3 / 4095
-vSensor    = vGpio * 1.556                        [10k/18k divider kompensation: (10+18)/18]
+dwell      = (igtFall_us - igtRise_us) / 1000           [ms]
+vGpio      = analogRead(pin) * 3.3 / 4095
+vSensor    = vGpio * 1.556                              [10k/18k og 1M/1.8M: (10+18)/18]
 map_kPa    = mapKpaMin + (vSensor - mapVmin) / (mapVmax - mapVmin) * (mapKpaMax - mapKpaMin)
-inj_ms     = (injRise_us - injFall_us) / 1000    [ms]
-iac_pct    = iacHighUs / iacPeriodUs * 100       [%]
-knock_pct  = (adcMax - adcMin) * 100 / 4095      [0–100%, 64 samples]
+R_ntc      = Rpu * vSensor / (5 - vSensor)
+T_ntc      = 1 / (A + B·ln R + C·ln³ R) - 273.15        A=1.219325e-3, B=2.785840e-4, C=3.760559e-8
+inj_ms     = (injRise_us - injFall_us) / 1000           [ms]
+iac_pct    = iacHighUs / iacPeriodUs * 100              [%]
 ```
 
 MAP sensor standard-presets:
@@ -91,14 +112,28 @@ MAP sensor standard-presets:
 | MPX4115      | 0.20V | 4.80V | 15 kPa  | 115 kPa |
 
 Tand-tæller nulstilles ved missing-tooth: dt > lastPeriod × 1.7. Hullet varer 3 tandperioder (36-2), så `toothPeriodUs` gemmes som `dt / MISSING_GAP_PERIODS` ved hullet.
-Frac clampes til [0, 1] og nulstilles hvis motoren er stoppet (dt > period × 4; hullet selv varer 3 perioder).
+Frac clampes til [0, 1] og nulstilles hvis motoren er stoppet (dt > period × 4; hullet selv varer 3 perioder). For gnister i hullet efter tand 33 clampes brøken til [0, 3], så vinkler 330–360° ikke klippes.
 
 ## Kalibrering
-Varm tomgang, **S1 slået til (TE1–E1 brokoblet)**, så OEM-ECU'en låser på 10° BTDC. Tryk GPIO10 kortvarigt, og slå S1 fra igen. Uden bro varierer tomgangstændingen 5–23°:
-```
-calibOffset = toothCount * 10 + 10
-```
-Gemt i NVS (Preferences) under nøglen `"offset"`. Standardværdi: 215.
+
+### Tændingsvinkel (auto)
+Startes med `POST /cal/auto` (dashboard) eller kort tryk på CAL-knappen (GPIO10). `autoCalStep()` kører hvert 50 ms:
+
+| Tilstand (`ac`) | Betydning | Videre når |
+|---|---|---|
+| 1 | Venter på stabil tomgang (sync, 450–1300 o/min) | 3 s sammenhængende tomgang → TE1 HIGH |
+| 2 | TE1 brokoblet, OEM-ECU låser på 10° | 3 s |
+| 3 | Måler gnistvinkel | 3 s, ≥ 10 gnister, spredning ≤ 2° → `calibOffset = middel + calAngle` |
+| 4 | OK | – |
+| 5 | Fejl (`ae`): 1 ingen stabil tomgang inden 20 s, 2 omdrejninger forlod tomgang, 3 tændingen låste ikke, 4 for få gnister | – |
+
+TE1 slippes altid ved OK, fejl, afbrydelse (`/cal/auto/stop`) og timeout. Gnistvinkler samles i en ringbuffer (48) fra `loop()` og midles cirkulært. `acDelta` = forskel i gnistvinkel før og efter TE1 (logges på serial).
+Gemt i NVS: `"offset"` (standard 215) og `"cal_angle"` (standard 10).
+
+`POST /cal` (manuel, TE1 brokoblet med hånden) bruger gnistvinklerne fra de sidste 2 s med samme krav.
+
+### Temperatur
+`POST /temp/cal` med `ambient=°C` (kold motor, stået natten over): `Rpu = R_ntc(ambient) · (5 − V) / V` for hver tilsluttet sensor. Gemt i NVS som `"clt_rpu"` og `"iat_rpu"` (standard 2200 Ω).
 
 ## Serial output (115200 baud)
 ```
@@ -130,7 +165,11 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 | `/`               | GET      | Live dashboard (LittleFS)                                           |
 | `/ws`             | WS       | WebSocket → JSON @ 5 Hz                                             |
 | `/status`         | GET      | `{offset, synced, logActive, logBytes, fsFree, fsTotal, staConnected, staIP, uptime, freeHeap, apClients, rssi}` |
-| `/cal`            | POST     | Auto-kalibrering (kræver sync, valgfri `angle=10`) → `{offset}`     |
+| `/cal`            | POST     | Manuel kalibrering, TE1 brokoblet med hånden (valgfri `angle=10`) → `{offset}` |
+| `/cal/auto`       | POST     | Start auto-kalibrering via TE1-optokobler (valgfri `angle=10`)      |
+| `/cal/auto/stop`  | POST     | Afbryd auto-kalibrering og slip TE1                                 |
+| `/temp`           | GET      | `{clt, iat, cltV, iatV, cltRpu, iatRpu}`                            |
+| `/temp/cal`       | POST     | Kalibrér pull-ups ved kendt temperatur (form: `ambient=15`)          |
 | `/cal/set`        | POST     | Manuel offset (form: `offset=215`) → `{offset}`                     |
 | `/wifi/config`    | GET      | `{ssid, connected, ip}` for STA-tilstand                            |
 | `/wifi/config`    | POST     | Sæt STA credentials (form: `ssid=…&pass=…`) → gemmer i NVS         |
@@ -154,7 +193,7 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 
 ## WebSocket JSON-format
 ```json
-{"r":875,"a":10.2,"d":3.14,"t":20,"f":51,"s":1,"sc":120,"m":98.5,"mv":1.234,"i":2.30,"c":45.0,"cf":14.2,"k":12,"kc":3,"kt":30,"lc":150,"la":1,"lb":30720}
+{"r":875,"a":10.2,"d":3.14,"t":20,"f":51,"s":1,"sc":120,"m":35.0,"mv":1.600,"i":2.30,"c":45.0,"cf":14.2,"ct":88.5,"it":24.0,"cv":0.612,"iv":2.310,"k":-1,"kc":0,"kt":30,"ac":4,"ae":0,"ao":215.0,"te":0,"lc":150,"la":1,"lb":30720}
 ```
 | Felt | Beskrivelse                                    | -1 = ikke tilgængelig |
 |------|------------------------------------------------|-----------------------|
@@ -170,7 +209,15 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 | i    | Injektor ms                                    | -1                    |
 | c    | IAC duty %                                     | -1                    |
 | cf   | IAC frekvens Hz                                | 0 = ikke aktiv        |
-| k    | Knock amplitude 0–100% (peak-to-peak, 64 samp)| —                     |
+| ct   | Kølevand °C (THW)                              | -99                   |
+| it   | Indsugningsluft °C (THA)                       | -99                   |
+| cv   | THW sensor-spænding V                          | —                     |
+| iv   | THA sensor-spænding V                          | —                     |
+| ac   | Auto-kalibrering tilstand 0–5                  | —                     |
+| ae   | Auto-kalibrering fejlkode 0–4                  | —                     |
+| ao   | Aktuelt kalibrerings-offset °                  | —                     |
+| te   | TE1-udgang (0 fri / 1 brokoblet)               | —                     |
+| k    | Knock amplitude 0–100% (peak-to-peak, 64 samp)| -1 (ikke tilsluttet)  |
 | kc   | Knock-tæller (events over tærskel siden boot)  | —                     |
 | kt   | Knock tærskel %                                | —                     |
 | lc   | Log-linjer gemt i /ignlog.csv                  | —                     |
@@ -179,9 +226,9 @@ Auto-reconnect hvert 15. sekund hvis konfigureret men frakoblet.
 
 ## CSV log-format
 ```
-timestamp_ms,rpm,adv_btdc,dwell_ms,tooth,frac,sync,map_kpa,inj_ms,iac_pct
-0,875,10.2,3.14,20,51,1,98.5,2.30,45.0
-200,880,10.3,3.14,20,48,1,,2.31,
+timestamp_ms,rpm,adv_btdc,dwell_ms,tooth,frac,sync,map_kpa,inj_ms,iac_pct,clt_c,iat_c,te1
+0,875,10.2,3.14,20,51,1,35.0,2.30,45.0,88.5,24.0,0
+200,880,10.3,3.14,20,48,1,,2.31,,88.5,,0
 ```
 Tomme felter = sensor ikke tilsluttet.
 **Logfil**: `/ignlog.csv` i LittleFS. Append-mode, overlever genstart. Auto-stop når <1 KB fri.
@@ -285,8 +332,9 @@ JavaScript-datagenerator der producerer realistiske motordata:
 - RPM ~875 omdrejninger (varierer sinusformet)
 - Advance ~10.2° BTDC, Dwell ~3.14 ms
 - MAP ~35 kPa (tomgangsvakuum, Toyota 4E-FE skalering)
+- Kølevand ~88 °C, indsugningsluft ~24 °C, auto-kalibrering "OK" (offset 215°)
 - Injektor ~2.30 ms, IAC ~45% duty @ 14.2 Hz
-- Knock amplitude ~8% (under tærskel)
+- Knock skjult (`k = -1`, ikke tilsluttet på 4E-FE)
 
 Simulatoren kører 120 ticks ved opstart så grafer og scatter-plot er udfyldt inden siden vises.
 Alle UI-sektioner, konfigurationspaneler og knapper fungerer visuelt (API-kald er stubbe).
@@ -315,6 +363,10 @@ Web flasher er live på:
 |---------|---------|--------|
 | ~~Advance/RPM forkert i tand 0~~ | ~~Efter hullet blev `toothPeriodUs` sat til hele hullets varighed (3 perioder), så frac/advance/RPM i tand 0 var op til ~6,7° forkerte.~~ | **Fikset** – `dt / MISSING_GAP_PERIODS` ved hullet |
 | ~~IGT-deler forkert~~ | ~~Dokumentationen angav 33k/10k for IGT (5 V-signal → ~1,2 V, aldrig HIGH) og en ren deler på NE (VR-sensor).~~ | **Fikset** – 10k/18k på IGT, MAX9926 på NE |
+| ~~Advance målt på forkert tidspunkt~~ | ~~Advance blev regnet ud fra krumtappens position, når loggen samplede (hver 200 ms), ikke ved gnisten. CAL gemte den tilfældige tand.~~ | **Fikset** – vinklen fanges i `igtISR()` ved faldende flanke |
+| ~~Gnist i 36-2-hullet klippet~~ | ~~Brøken blev clampet til 1, så gnister mellem tand 33 og tand 0 (330–360°) blev registreret som 340°.~~ | **Fikset** – clamp til 3 efter tand 33 |
+| ~~INJ på GPIO15~~ | ~~GPIO15 er SPICS1 (PSRAM CS) og ikke ført ud på N16R4-modulet.~~ | **Fikset** – flyttet til GPIO24 |
+| ~~NE på GPIO6~~ | ~~På Waveshare-boardet har GPIO6 batterimålingens deler + 200 nF, som runder flankerne.~~ | **Fikset** – NE på GPIO8, IGT på GPIO9 |
 | ~~MAP på strapping-pin~~ | ~~MAP sad på GPIO2 (strapping-pin); deleren drev pin'en ved boot.~~ | **Fikset** – flyttet til GPIO4 (ADC1_CH3) |
 | ~~OLED på flash-pins~~ | ~~SDA/SCL på GPIO21/20, som er SPI flash på ESP32-C5.~~ | **Fikset** – GPIO0/1. OLED stadig deaktiveret indtil test |
 | OLED deaktiveret | `Wire.begin()` crashede ESP32-C5. Oprindeligt tilskrevet legacy I2C-API i arduino-esp32 3.3.8, men SDA/SCL sad på flash-pins (GPIO21/20). `oledOk = false` hardkodet i `setup()`. | Afventer test over USB på GPIO0/1 |
@@ -345,7 +397,7 @@ Web flasher er live på:
 - [x] Dwell i grader (°) beregnet fra dwell_ms × RPM, vist i dwell-kort)
 - [x] Skærmvågen via Wake Lock API (forhindrer telefon i at slukke under monitorering)
 - [x] Konfigurerbar kalibreringsvinkel (POST /cal angle=X, default 10° BTDC)
-- [x] Knock sensor (GPIO3/ADC1_CH2, peak-to-peak amplitude 64 ADC-reads, tærskel NVS-gemt, dashboard bar)
+- [x] Knock sensor (kode beholdt, men `PIN_KNOCK = -1` på 4E-FE – ikke tilsluttet)
 - [~] OLED SSD1306 128×64 (GPIO0=SDA/GPIO1=SCL) – kode implementeret, men **deaktiveret**. Tidligere på GPIO21/20, som er SPI flash på C5 – sandsynlig årsag til crashet. Skal testes over USB før genaktivering
 - [x] RPM progress bar (3-farvet grøn/amber/rød bar under RPM-tallet op til 7000)
 - [x] Farvekodet Advance-værdi (blå/grøn/orange/amber/rød efter tændings-zone)
@@ -357,6 +409,9 @@ Web flasher er live på:
 - [x] Canvas resize handler (grafer tegner korrekt efter browser/mobil rotation)
 - [x] OTA auto-update: `version.h` stamped af CI, check hvert 6. time via manifest.json, download+flash fra GitHub releases, dashboard banner + progress
 - [x] ~~IAC stepper decodning~~ – ikke relevant: Corolla E11 4E-FE (1997+) bruger en 1-spolet rotary solenoid (RSO/RSD) med PWM, som allerede måles korrekt
+- [x] Gnistvinkel fanget i IGT-interrupt (advance ved gnisten)
+- [x] Auto-kalibrering via TE1-optokobler (GPIO26) med stabilitetstjek og automatisk frigivelse
+- [x] THW/THA-temperaturer (højimpedant 1M/1.8M, Toyota NTC, pull-up-kalibrering)
 - [ ] Valgfri INJ2-kanal til #20 (A25, cyl. 2+4) for at bekræfte, at grupperne er ens
 
 ### v2 – OLED standalone display

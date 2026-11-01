@@ -7,20 +7,20 @@ Fabrikskortene findes ikke i nogen af filerne, og ROM'en er ikke udlæst. Der er
 Kør bilen på **original-ECU'en** og aflyt signalerne parallelt bag på OEM-stikket. REV2-adapteren erstatter ECU'en og bruges ikke her.
 
 ### Hardware: ESP32-C5-loggeren i dette repo
-- NE (A21/A9) via MAX9926, IGT1 (A6), PIM (A4), #10 (A12) og RSO (A14). Se `OEM-aflytning_ESP32-C5.html` og `../docs/wiring-4e-fe.svg`.
-- Loggeren beregner RPM, advance, dwell, MAP, injektor-ms og IAC-duty direkte og logger dem til CSV (`/log.csv`).
-- **THW/THA og KNK1 må ikke tilsluttes**, fordi de belaster OEM-ECU'ens egne målinger. Mål kun med varm motor (ventilatoren har koblet ind).
+- Board: Waveshare ESP32-C5-WIFI6-KIT. NE (A21/A9) via MAX9926, IGT1 (A6), PIM (A4), THW (A3), THA (A5), #10 (A12), RSO (A14) og TE1-optokobler (A2). Se `OEM-aflytning_ESP32-C5.html` og `../docs/wiring-4e-fe.svg`.
+- Loggeren beregner RPM, advance ved gnisten, dwell, MAP, injektor-ms, IAC-duty og kølevands-/indsugningstemperatur og logger dem til CSV (`/log.csv`).
+- THW/THA tappes højimpedant (1 MΩ/1,8 MΩ + 100 nF), så OEM-ECU'ens egen måling ikke påvirkes. **KNK1 tilsluttes ikke.**
 - Alternativ til detaljerede bølgeformer: en 8-kanals logikanalysator (FX2 + PulseView) på IGT1, IGT2, #10 og #20 med samme beskyttelse som loggeren.
 
 ### Kalibrering af tændingsvinkel
-1. Varm motor, tomgang, **S1 slået til (TE1–E1 brokoblet)** → OEM-ECU'en giver fast 10° BTDC (8–12°).
-2. Tryk CAL på loggeren. Offset'et (tand × 10 + 10) er vinklen fra 36-2-hullet til TDC og giver også den rigtige `TrigAng` til Speeduino.
-3. Slå S1 fra og optag de normale driftspunkter.
+1. Varm motor, tomgang. Tryk **Auto-kalibrér** (eller CAL-knappen).
+2. Loggeren brokobler TE1–E1 via optokobleren → OEM-ECU'en giver fast 10° BTDC (8–12°). Gnistvinklen måles i 3 s og skal være stabil. Offset'et = gnistvinkel efter tand 0 + 10° og giver også den rigtige `TrigAng` til Speeduino. TE1 slippes automatisk.
+3. Optag de normale driftspunkter.
 
 ### Hvad der optages
 - Stationære punkter: tomgang, og 1500–6000 o/min i trin på 500 × gaspositioner fra let til fuld belastning. Bjergkørsel eller bremsning med håndbremsen giver belastning, ellers en dyno. Hvert punkt holdes 3–5 s.
 - Fuldgasstræk i 3. gear (giver 100 kPa-rækken).
-- Et koldstart-forløb (giver warmup-berigelse, men kun som PW-forhold, da THW ikke kan logges parallelt).
+- Et koldstart-forløb fra kold motor til ventilatoren slår til. Med THW logget giver det warmup-berigelsen direkte som PW-forhold mod kølevandstemperatur.
 - Loggeren måler kun #10 (cyl. 1+3). Det er nok, fordi grupperne har samme pulsbredde.
 
 ### Omregning (script skrives, når der er data)

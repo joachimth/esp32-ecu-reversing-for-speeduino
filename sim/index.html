@@ -117,8 +117,8 @@ footer a:hover{color:#888}
   <div class="card"><label>Advance</label><div class="val" id="adv">—</div><div class="unit">° BTDC</div><div class="stats" id="st-adv"></div></div>
   <div class="card"><label>Dwell</label><div class="val" id="dwell">—</div><div class="unit">ms · <span id="dwell-deg" style="color:#555">—°</span></div><div class="stats" id="st-dwell"></div></div>
   <div class="card sync"><label>Sync</label><div class="val" id="sync">—</div><div class="unit">missing tooth lock</div></div>
-  <div class="card" id="knock-card" style="grid-column:1/-1">
-    <label>Knock sensor · GPIO3</label>
+  <div class="card opt" id="knock-card" style="grid-column:1/-1">
+    <label>Knock sensor</label>
     <div style="display:flex;align-items:center;gap:12px">
       <div class="val" id="knock-val" style="font-size:1.8rem;min-width:52px">0%</div>
       <div style="flex:1">
@@ -134,7 +134,9 @@ footer a:hover{color:#888}
 
 <div class="grid" id="opt-grid" style="display:none">
   <div class="card opt" id="map-card"><label id="card-lbl-map">MAP</label><div class="val" id="map">—</div><div class="unit">kPa · GPIO4</div><div class="stats" id="st-map"></div></div>
-  <div class="card opt" id="inj-card"><label id="card-lbl-inj">Injektor</label><div class="val" id="inj">—</div><div class="unit">ms · GPIO15</div><div class="stats" id="st-inj"></div></div>
+  <div class="card opt" id="inj-card"><label id="card-lbl-inj">Injektor</label><div class="val" id="inj">—</div><div class="unit">ms · GPIO24</div><div class="stats" id="st-inj"></div></div>
+  <div class="card opt" id="clt-card"><label>Kølevand</label><div class="val" id="clt">—</div><div class="unit">°C · THW · GPIO3</div><div class="stats" id="st-clt"></div></div>
+  <div class="card opt" id="iat-card"><label>Indsugningsluft</label><div class="val" id="iat">—</div><div class="unit">°C · THA · GPIO5</div><div class="stats" id="st-iat"></div></div>
   <div class="card opt" id="iac-card"><label id="card-lbl-iac">IAC</label><div class="val" id="iac">—</div><div class="unit" id="iac-unit">% · GPIO23</div><div class="stats" id="st-iac"></div></div>
 </div>
 
@@ -212,18 +214,31 @@ footer a:hover{color:#888}
   </div>
   <div id="kb">
     <div class="row">
-      <button class="btn btn-o" id="cal-btn" onclick="doAutoCal()" disabled>⊙ Kalibrér nu</button>
+      <button class="btn btn-o" id="cal-btn" onclick="doAutoCal()" disabled>⊙ Auto-kalibrér</button>
       <span class="lbl">ved</span>
       <input type="number" id="cal-angle" min="-10" max="60" step="0.5" value="10" style="width:58px">
       <span class="lbl">° BTDC</span>
       <span class="msg" id="cal-msg"></span>
     </div>
     <div class="row" style="margin-top:8px">
+      <span class="lbl">Status</span>
+      <span class="lbl" id="ac-status" style="color:#aaa">—</span>
+      <span class="lbl" id="te1-state" style="color:#555">TE1: fri</span>
+      <button class="btn btn-s" id="ac-stop" onclick="stopAutoCal()" style="display:none">Afbryd</button>
+    </div>
+    <div class="row" style="margin-top:8px">
       <span class="lbl">Manuel offset</span>
       <input type="number" id="cal-val" min="1" max="359" step="1" value="215">
       <button class="btn btn-s" onclick="setOffset()">Gem</button>
     </div>
-    <p class="hint">Kalibrér ved et kendt advance. Toyota 4E-FE: brokobl TE1–E1 (S1) ved varm tomgang – OEM-ECU'en låser så tændingen på 10° BTDC. Uden bro varierer tomgangstændingen 5–23°.</p>
+    <p class="hint">Start ved varm tomgang. Loggeren venter på stabil tomgang, brokobler TE1–E1 via optokobleren (GPIO26), så OEM-ECU'en låser tændingen på 10° BTDC, måler gnistvinklen i 3 s og slipper TE1 igen. Uden optokobler: slå TE1-kontakten til med hånden før start. CAL-knappen (GPIO10) starter det samme.</p>
+    <div class="row" style="margin-top:10px">
+      <span class="lbl">Temperatur-kalibrering (kold motor, stået natten over)</span>
+      <input type="number" id="amb-t" min="-30" max="45" step="0.5" value="15" style="width:62px">
+      <span class="lbl">°C omgivelse</span>
+      <button class="btn btn-s" onclick="calTemp()">Kalibrér</button>
+      <span class="msg" id="temp-msg"></span>
+    </div>
   </div>
 </div>
 
@@ -382,7 +397,7 @@ function setConn(ok) {
 }
 function showOpt(id, on) {
   $(id+'-card').classList.toggle('on', on);
-  const any = ['map','inj','iac'].some(x=>$(x+'-card').classList.contains('on'));
+  const any = ['map','inj','iac','clt','iat'].some(x=>$(x+'-card').classList.contains('on'));
   $('opt-grid').style.display = any ? '' : 'none';
 }
 function showMsg(id, txt, ok, ms=3000) {
@@ -522,6 +537,20 @@ function redraw(){
 function toggleLog(){ logRunning=!logRunning; $('log-btn').textContent=logRunning?'⏹ Stop':'▶ Start'; $('log-btn').classList.toggle('on',logRunning); }
 function clearLog(){}
 function doAutoCal(){}
+function stopAutoCal(){}
+function calTemp(){}
+const AC_TXT=['—','Venter på stabil tomgang…','TE1 brokoblet – stabiliserer…','Måler gnistvinkel…','✓ Kalibreret','✗ Fejlet'];
+const AE_TXT=['','ingen stabil tomgang inden 20 s','omdrejninger forlod tomgang','tændingen låste ikke – tjek TE1/optokobler','for få gnister – tjek IGT'];
+function acRender(st,er,off,te){
+  let t=AC_TXT[st]||'—';
+  if(st===4)t+=' · offset '+off.toFixed(1)+'°';
+  if(st===5&&AE_TXT[er])t+=' – '+AE_TXT[er];
+  $('ac-status').textContent=t;
+  $('ac-status').style.color=st===4?'#81c784':st===5?'#ef5350':st>0?'#ffb347':'#aaa';
+  $('te1-state').textContent='TE1: '+(te?'brokoblet':'fri');
+  $('te1-state').style.color=te?'#ffb347':'#555';
+  $('ac-stop').style.display=(st>=1&&st<=3)?'':'none';
+}
 function setOffset(){}
 function saveLabels(){}
 function setPreset(vmin,vmax,kmin,kmax){ $('map-vmin').value=vmin.toFixed(2);$('map-vmax').value=vmax.toFixed(2);$('map-kmin').value=kmin;$('map-kmax').value=kmax; }
@@ -564,7 +593,9 @@ function simTick() {
     r: rpm, a: adv, d: dwell, t: tooth, f: frac, s: sync, sc: simSyncCount,
     m: mapKpa, mv: mapV,
     i: inj, c: iacPct, cf: iacFreq,
-    k: knock, kc: knockC, kt: knockThr,
+    ct: 88.5 + Math.sin(simT * 0.05) * 1.5, it: 24.0 + Math.sin(simT * 0.03),
+    ac: 4, ae: 0, ao: 215.0, te: 0,
+    k: -1, kc: knockC, kt: knockThr,
     lc: logLines, la: logRunning ? 1 : 0, lb: logBytes
   };
 
@@ -597,7 +628,11 @@ function simTick() {
   if(d.m>=0){mmUpdate('map',d.m);mmShow('st-map','map',1);}
   if(d.i>=0){mmUpdate('inj',d.i);mmShow('st-inj','inj',2);}
   if(d.c>=0){mmUpdate('iac',d.c);mmShow('st-iac','iac',1);}
-  if(d.k!==undefined){
+  if(d.ct!==undefined&&d.ct>-90){showOpt('clt',true);$('clt').textContent=d.ct.toFixed(1);mmUpdate('clt',d.ct);mmShow('st-clt','clt',1);}else showOpt('clt',false);
+  if(d.it!==undefined&&d.it>-90){showOpt('iat',true);$('iat').textContent=d.it.toFixed(1);mmUpdate('iat',d.it);mmShow('st-iat','iat',1);}else showOpt('iat',false);
+  if(d.ac!==undefined)acRender(d.ac,d.ae,d.ao,d.te);
+  $('knock-card').classList.toggle('on',d.k!==undefined&&d.k>=0);
+  if(d.k!==undefined&&d.k>=0){
     $('knock-val').textContent=Math.round(d.k)+'%';
     const exc=d.k>d.kt;
     $('knock-bar').style.width=Math.min(d.k,100)+'%';

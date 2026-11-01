@@ -12,37 +12,44 @@
 #include <WiFiClientSecure.h>
 #include "version.h"
 
-// ─── Pins (ESP32-C5-WROOM-1) ─────────────────────────────────────────────────
-// ESP32-C5 (ESP-IDF GPIO summary + arduino-esp32 variant):
+// ─── Pins (Waveshare ESP32-C5-WIFI6-KIT, ESP32-C5-WROOM-1 N16R4) ─────────────
+// ESP32-C5 (ESP-IDF GPIO summary, ESP32-C5 datasheet, arduino-esp32 variant,
+// Waveshare ESP32-C5-WIFI6-KIT-NXRX schematic):
 //   ADC1: GPIO1–6 = ADC1_CH0–CH5 (reliable with WiFi active).
+//   GPIO15 = SPICS1 (PSRAM chip select) – NC on modules with PSRAM (N16R4/N16R8).
 //   GPIO16–22 = SPI flash/PSRAM – do not use.
-//   GPIO13/14 = USB-JTAG (USB D-/D+).   GPIO11/12 = UART0 TX/RX (Serial).
+//   GPIO13/14 = USB-JTAG (USB D-/D+).   GPIO11/12 = UART0 TX/RX (CH343, Serial).
 //   Strapping pins: GPIO2, 7, 25, 27, 28 – keep external drivers off them.
-//   GPIO27 = on-board RGB LED, GPIO28 = BOOT button on the DevKitC.
+//   Waveshare board: GPIO6 = BAT_ADC (200k/100k divider + 2×100nF) – do not use,
+//   GPIO27 = WS2812 RGB LED, GPIO28 = BOOT button.
 //
 // Interface to the Toyota 4E-FE OEM ECU connector (tapped in parallel, listen only).
 // See docs/wiring-4e-fe.svg.
-//   NE    → GPIO6   ECU A21 NE+ / A9 NE- → MAX9926 VR conditioner (differential),
+//   NE    → GPIO8   ECU A21 NE+ / A9 NE- → MAX9926 VR conditioner (differential),
 //                   open-drain OUT with 10k pull-up to 3V3. NE is a VR sensor
 //                   (AC, amplitude grows with RPM) – never a plain resistor divider.
-//   IGT   → GPIO5   ECU A6 IGT1, 5V logic → 10k/18k divider
-//   CAL   → GPIO10  push button to GND (internal pull-up)
-//   MAP   → GPIO4   ECU A4 PIM, 0-5V → 10k/18k divider, ADC1_CH3
-//           (not GPIO2: strapping pin, the divider would drive it at boot)
-//   INJ   → GPIO15  ECU A12 #10 (cyl 1+3), 12V low side → 33k/10k + BAT54S clamp
-//           (GPIO15 is a plain GPIO on the C5. INJ was moved here from the old
-//            ESP32 layout because GPIO11 is UART0 TX, used by Serial.)
+//   IGT   → GPIO9   ECU A6 IGT1, 5V logic → 10k/18k divider
+//   INJ   → GPIO24  ECU A12 #10 (cyl 1+3), 12V low side → 33k/10k + BAT54S clamp
 //   IAC   → GPIO23  ECU A14 RSO, 12V PWM low side → 33k/10k + BAT54S clamp
-//   KNOCK → GPIO3   ADC1_CH2, not connected on 4E-FE (a divider loads the OEM piezo signal)
-//   SDA   → GPIO0   (arduino-esp32 default I2C pins for C5)
-//   SCL   → GPIO1   (GPIO20/21 are SPI flash on C5 – never use them)
-#define PIN_NE     6
-#define PIN_IGT    5
-#define PIN_CAL   10
-#define PIN_MAP    4   // ADC1_CH3
-#define PIN_INJ   15
+//   MAP   → GPIO4   ECU A4 PIM, 0-5V → 10k/18k divider, ADC1_CH3
+//   CLT   → GPIO3   ECU A3 THW, 1M/1.8M divider + 100nF, ADC1_CH2 (high impedance:
+//                   does not disturb the OEM ECU's own NTC reading)
+//   IAT   → GPIO5   ECU A5 THA, 1M/1.8M divider + 100nF, ADC1_CH4
+//   TE1   → GPIO26  output → PC817 optocoupler LED (330R). Transistor C=A2 TE1,
+//                   E=A24 E1. HIGH = TE1 bridged → OEM ECU locks timing at 10° BTDC.
+//   CAL   → GPIO10  push button to GND (internal pull-up) → starts auto-calibration
+//   SDA   → GPIO0, SCL → GPIO1 (arduino-esp32 default I2C pins for C5)
+//   KNOCK → not connected on 4E-FE (a divider loads the OEM piezo signal)
+#define PIN_NE     8
+#define PIN_IGT    9
+#define PIN_INJ   24
 #define PIN_IAC   23
-#define PIN_KNOCK  3   // ADC1_CH2
+#define PIN_MAP    4   // ADC1_CH3
+#define PIN_CLT    3   // ADC1_CH2
+#define PIN_IAT    5   // ADC1_CH4
+#define PIN_TE1   26
+#define PIN_CAL   10
+#define PIN_KNOCK -1   // not connected
 #define PIN_SDA    0
 #define PIN_SCL    1
 
@@ -57,10 +64,17 @@ volatile bool     synced        = false;
 volatile uint32_t syncCount     = 0;  // missing-tooth events since boot
 
 volatile uint32_t dwellStartUs  = 0;
-volatile float    dwellMs       = 0;
+volatile uint32_t dwellUs       = 0;
+
+// Spark event (IGT falling edge) captured as crank position: tooth + fraction.
+// Integer math only inside ISRs (no soft-float in interrupt context).
+volatile int      sparkTooth    = 0;
+volatile uint32_t sparkFracQ    = 0;   // fraction of a tooth × 1000 (0–3000 in the gap)
+volatile uint32_t sparkUs       = 0;
+volatile uint32_t sparkSeq      = 0;
 
 volatile uint32_t injStartUs    = 0;
-volatile float    injMs         = 0;
+volatile uint32_t injUs         = 0;
 volatile uint32_t lastInjUs     = 0;
 
 volatile uint32_t iacRiseUs     = 0;
@@ -89,6 +103,23 @@ float mapKpaMax = 105.0f;  // kPa at Vmax
 
 // 36-2 trigger wheel: the missing-tooth gap spans 3 tooth periods
 static constexpr uint32_t MISSING_GAP_PERIODS = 3;
+static constexpr int      LAST_TOOTH_BEFORE_GAP = 33;  // teeth 0..33, then the gap
+
+// Coolant / intake air temperature (Toyota NTC on THW/THA, ECU pull-up to 5 V).
+// High-impedance divider 1M/1.8M → same 28/18 compensation as the MAP input.
+static constexpr float TEMP_DIV_COMP = 28.0f / 18.0f;
+// Steinhart-Hart fitted to Toyota THA/THW spec (Haynes: 16.0k@-20°C, 2.45k@20°C, 0.58k@60°C)
+static constexpr float SH_A = 1.219325e-03f, SH_B = 2.785840e-04f, SH_C = 3.760559e-08f;
+float cltRpu = 2200.0f;   // OEM ECU pull-up for THW (Ω) – calibrated via /temp/cal
+float iatRpu = 2200.0f;   // OEM ECU pull-up for THA (Ω)
+
+// Auto-calibration (TE1–E1 bridge via optocoupler)
+float    calAngle    = 10.0f;   // known locked timing with TE1 bridged (° BTDC)
+uint8_t  acState     = 0;       // 0 idle,1 waiting for idle,2 TE1 on/settling,3 measuring,4 OK,5 failed
+uint8_t  acError     = 0;       // 1 no stable idle,2 rpm left idle window,3 timing not locked,4 too few sparks
+uint32_t acStateMs   = 0;
+uint32_t acStartMs   = 0;
+float    acDelta     = 0.0f;    // change in spark angle when TE1 was bridged (°)
 
 // Sensor labels (user-defined names shown in dashboard)
 String lblMap = "MAP";
@@ -104,7 +135,7 @@ DNSServer      dnsServer;
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, PIN_SCL, PIN_SDA);
 bool oledOk = false;
 
-// ─── Knock sensor (GPIO33, always sampled; peak-to-peak amplitude) ────────────
+// ─── Knock sensor (disabled when PIN_KNOCK < 0; peak-to-peak amplitude) ──────
 static uint8_t  knockLevel = 0;    // 0–100 % peak-to-peak of last window
 static uint32_t knockCount = 0;    // knock events above threshold since boot
 static uint8_t  knockThresh = 30;  // threshold % (NVS-stored)
@@ -160,14 +191,22 @@ void IRAM_ATTR crankISR()
 void IRAM_ATTR igtISR()
 {
     uint32_t now = micros();
-    if (digitalRead(PIN_IGT)) dwellStartUs = now;
-    else                      dwellMs = (now - dwellStartUs) / 1000.0f;
+    if (digitalRead(PIN_IGT)) { dwellStartUs = now; return; }
+    // Falling edge = spark. Record dwell and the crank position at this instant.
+    dwellUs = now - dwellStartUs;
+    uint32_t tp = toothPeriodUs;
+    if (!synced || tp == 0) return;
+    int      tc   = toothCount;
+    uint32_t q    = (uint32_t)((uint64_t)(now - lastToothUs) * 1000ULL / tp);
+    uint32_t qMax = (tc == LAST_TOOTH_BEFORE_GAP) ? 1000UL * MISSING_GAP_PERIODS : 1000UL;
+    if (q > qMax) q = qMax;
+    sparkTooth = tc; sparkFracQ = q; sparkUs = now; sparkSeq = sparkSeq + 1;
 }
 void IRAM_ATTR injISR()
 {
     uint32_t now = micros();
     if (!digitalRead(PIN_INJ)) injStartUs = now;
-    else { injMs = (now - injStartUs) / 1000.0f; lastInjUs = now; }
+    else { injUs = now - injStartUs; lastInjUs = now; }
 }
 void IRAM_ATTR iacISR()
 {
@@ -206,11 +245,91 @@ static bool isIacActive()    { return lastIacEdgeUs&&(micros()-lastIacEdgeUs)<20
 static float getIacDuty()    { return iacPeriodUs>0 ? iacHighUs/iacPeriodUs*100.0f : -1.0f; }
 static float getIacFreqHz()  { return iacPeriodUs>0 ? 1000000.0f/iacPeriodUs : 0.0f; }
 
+// ─── Temperatures (THW / THA) ─────────────────────────────────────────────────
+static float ntcTempC(float r)
+{
+    float L = logf(r);
+    return 1.0f / (SH_A + SH_B * L + SH_C * L * L * L) - 273.15f;
+}
+static float ntcResForTemp(float tC)
+{
+    // Inverse of ntcTempC by bisection on log(R); T falls as R rises
+    float lo = logf(30.0f), hi = logf(300000.0f);
+    for (int i = 0; i < 40; i++) {
+        float mid = 0.5f * (lo + hi);
+        if (ntcTempC(expf(mid)) > tC) lo = mid; else hi = mid;
+    }
+    return expf(0.5f * (lo + hi));
+}
+static float readSensorV(int pin)
+{
+    uint32_t s = 0;
+    for (int i = 0; i < 8; i++) s += analogRead(pin);
+    return (s >> 3) * 3.3f / 4095.0f * TEMP_DIV_COMP;
+}
+// Returns °C, or -99 when the input is not connected / out of range
+static float readTempC(int pin, float rpu, float* vOut = nullptr)
+{
+    float v = readSensorV(pin);
+    if (vOut) *vOut = v;
+    if (v < 0.05f || v > 4.90f) return -99.0f;
+    return ntcTempC(rpu * v / (5.0f - v));
+}
+
+// ─── Spark angle ──────────────────────────────────────────────────────────────
+// Crank angle of the last spark relative to tooth 0 (°), or -1 if none recently
+static float lastSparkAngle(uint32_t* seqOut = nullptr)
+{
+    noInterrupts();
+    int tc = sparkTooth; uint32_t q = sparkFracQ, su = sparkUs, seq = sparkSeq;
+    interrupts();
+    if (seqOut) *seqOut = seq;
+    if (seq == 0 || micros() - su > 500000UL) return -1.0f;
+    return tc * 10.0f + q / 100.0f;
+}
+static float wrap180(float a)
+{
+    while (a > 180.0f)   a -= 360.0f;
+    while (a <= -180.0f) a += 360.0f;
+    return a;
+}
+
+// Ring buffer of recent spark angles (filled from loop())
+static float    spkBuf[48];
+static uint32_t spkBufMs[48];
+static uint8_t  spkHead = 0, spkCount = 0;
+static void collectSpark()
+{
+    static uint32_t lastSeq = 0;
+    uint32_t seq; float ang = lastSparkAngle(&seq);
+    if (ang < 0 || seq == lastSeq) return;
+    lastSeq = seq;
+    spkBuf[spkHead] = ang; spkBufMs[spkHead] = millis();
+    spkHead = (spkHead + 1) % 48; if (spkCount < 48) spkCount++;
+}
+// Circular mean/spread of sparks newer than sinceMs. Returns sample count.
+static int sparkStats(uint32_t sinceMs, float& mean, float& spread)
+{
+    int n = 0; float ref = 0, sum = 0, mn = 1e9f, mx = -1e9f;
+    for (int i = 0; i < spkCount; i++) {
+        int k = (spkHead + 48 - 1 - i) % 48;
+        if ((int32_t)(spkBufMs[k] - sinceMs) < 0) continue;
+        if (n == 0) ref = spkBuf[k];
+        float d = wrap180(spkBuf[k] - ref);
+        sum += d; if (d < mn) mn = d; if (d > mx) mx = d; n++;
+    }
+    if (n == 0) return 0;
+    mean = ref + sum / n; if (mean < 0) mean += 360.0f; if (mean >= 360.0f) mean -= 360.0f;
+    spread = mx - mn;
+    return n;
+}
+
 // ─── Knock sensor ─────────────────────────────────────────────────────────────
 static void sampleKnock()
 {
     // 64 raw reads → peak-to-peak amplitude as 0-100 %
     // analogRead on ESP32 ≈ 15-25 µs → total ≈ 1-1.6 ms
+    if (PIN_KNOCK < 0) { knockLevel = 0; return; }
     int mn = 4095, mx = 0;
     for (int i = 0; i < 64; i++) {
         int r = analogRead(PIN_KNOCK);
@@ -284,14 +403,74 @@ static void computeValues(float& rpm, float& adv, float& dwell,
     tooth       = toothCount;
     uint32_t tp = toothPeriodUs;
     uint32_t dt = micros() - lastToothUs;
-    dwell       = dwellMs; sync = synced;
+    dwell       = dwellUs / 1000.0f; sync = synced;
     interrupts();
     // Stale signal → clear. The 36-2 gap itself lasts 3 periods, so use 4 to avoid
     // false "stopped" samples taken just before the first tooth after the gap.
     if (tp==0 || dt/tp>4) { frac=0; adv=0; rpm=0; sync=false; return; }  // also clear sync when signal is stale
     frac = (float)dt/tp; if (frac>1.0f) frac=1.0f;
-    adv  = calibOffset - (tooth*10.0f + frac*10.0f);
+    // Advance = calibration offset minus the crank angle at the last spark
+    // (IGT falling edge) – not the crank position at the time of this sample.
+    float spk = lastSparkAngle();
+    adv  = (spk >= 0) ? wrap180(calibOffset - spk) : 0.0f;
     rpm  = 60000000.0f / (tp*36.0f);
+}
+
+// ─── Auto-calibration ─────────────────────────────────────────────────────────
+// 1) wait for 3 s stable idle  2) bridge TE1–E1 (optocoupler) and wait 3 s
+// 3) measure the spark angle for 3 s – must be stable – then offset = angle + calAngle.
+// TE1 is always released on success, failure, abort or timeout.
+// Works the same with a manual TE1 switch: bridge it before starting.
+static void stopAutoCal(uint8_t st, uint8_t err)
+{
+    digitalWrite(PIN_TE1, LOW);
+    acState = st; acError = err; acStateMs = millis();
+    Serial.printf("AUTOCAL: state=%d err=%d offset=%.1f delta=%.1f\n", st, err, calibOffset, acDelta);
+}
+static void startAutoCal(float angle)
+{
+    calAngle = constrain(angle, -10.0f, 60.0f);
+    digitalWrite(PIN_TE1, LOW);
+    acState = 1; acError = 0; acDelta = 0.0f;
+    acStartMs = acStateMs = millis();
+}
+static void autoCalStep()
+{
+    if (acState < 1 || acState > 3) return;
+    uint32_t now = millis();
+    float rpm, adv, dwell, frac; int tooth; bool sync;
+    computeValues(rpm, adv, dwell, tooth, frac, sync);
+    bool idle = sync && rpm > 450.0f && rpm < 1300.0f;
+    static float before = -1.0f;
+    switch (acState) {
+    case 1:   // wait for stable idle
+        if (!idle) { acStateMs = now; if (now - acStartMs > 20000UL) stopAutoCal(5, 1); break; }
+        if (now - acStateMs >= 3000UL) {
+            float m, sp;
+            before = (sparkStats(now - 2000UL, m, sp) >= 5) ? m : -1.0f;
+            digitalWrite(PIN_TE1, HIGH);
+            acState = 2; acStateMs = now;
+        }
+        break;
+    case 2:   // TE1 bridged – let the OEM ECU settle on fixed timing
+        if (!idle) { stopAutoCal(5, 2); break; }
+        if (now - acStateMs >= 3000UL) { acState = 3; acStateMs = now; }
+        break;
+    case 3: { // measure
+        if (!idle) { stopAutoCal(5, 2); break; }
+        if (now - acStateMs < 3000UL) break;
+        float mean, spread;
+        int n = sparkStats(acStateMs, mean, spread);
+        if (n < 10)        { stopAutoCal(5, 4); break; }
+        if (spread > 2.0f) { stopAutoCal(5, 3); break; }
+        acDelta = (before >= 0) ? wrap180(before - mean) : 0.0f;
+        calibOffset = mean + calAngle;
+        if (calibOffset >= 360.0f) calibOffset -= 360.0f;
+        prefs.putFloat("offset", calibOffset);
+        prefs.putFloat("cal_angle", calAngle);
+        stopAutoCal(4, 0);
+        break; }
+    }
 }
 
 // ─── Logging helpers ─────────────────────────────────────────────────────────
@@ -307,7 +486,7 @@ static bool openLogFile()
             calibOffset, lblMap.c_str(), mapVmin, mapVmax, mapKpaMin, mapKpaMax);
         logFile.println(hdr);
         logFile.println("timestamp_ms,rpm,adv_btdc,dwell_ms,tooth,frac,sync,"
-                        "map_kpa,inj_ms,iac_pct");
+                        "map_kpa,inj_ms,iac_pct,clt_c,iat_c,te1");
     }
     return true;
 }
@@ -323,18 +502,24 @@ static void logSample(float rpm, float adv, float dwell,
     }
     int   mAdc   = readMapADC();
     float mapKpa = (mAdc>300&&mAdc<3800) ? adcToMapKpa(mAdc) : -1.0f;
-    float injMsV = isInjActive() ? injMs        : -1.0f;
+    float injMsV = isInjActive() ? injUs/1000.0f : -1.0f;
     float iacPct = isIacActive() ? getIacDuty() : -1.0f;
 
-    char mS[10]="", iS[10]="", cS[10]="";
+    float cltC   = readTempC(PIN_CLT, cltRpu);
+    float iatC   = readTempC(PIN_IAT, iatRpu);
+
+    char mS[10]="", iS[10]="", cS[10]="", tS[10]="", aS[10]="";
     if (mapKpa>=0) snprintf(mS,sizeof(mS),"%.1f",mapKpa);
     if (injMsV>=0) snprintf(iS,sizeof(iS),"%.2f",injMsV);
     if (iacPct>=0) snprintf(cS,sizeof(cS),"%.1f",iacPct);
+    if (cltC>-90)  snprintf(tS,sizeof(tS),"%.1f",cltC);
+    if (iatC>-90)  snprintf(aS,sizeof(aS),"%.1f",iatC);
 
-    char row[128];
-    snprintf(row, sizeof(row), "%lu,%.0f,%.1f,%.2f,%d,%d,%d,%s,%s,%s",
+    char row[160];
+    snprintf(row, sizeof(row), "%lu,%.0f,%.1f,%.2f,%d,%d,%d,%s,%s,%s,%s,%s,%d",
              (unsigned long)millis(), rpm, adv, dwell,
-             tooth, (int)(frac*100), sync?1:0, mS, iS, cS);
+             tooth, (int)(frac*100), sync?1:0, mS, iS, cS, tS, aS,
+             digitalRead(PIN_TE1) ? 1 : 0);
     int n = logFile.println(row);
     if (n > 0) { logCount++; logBytes += n; }
     static uint8_t fc = 0;
@@ -350,19 +535,26 @@ static void pushToClients()
     bool  mapOk   = (mapAdc > 300 && mapAdc < 3800);
     float mapKpa  = mapOk ? adcToMapKpa(mapAdc) : -1.0f;
     float mapV    = mapAdc * 3.3f / 4095.0f * MAP_DIV_COMP;
-    float injMsV  = isInjActive()    ? injMs           : -1.0f;
+    float injMsV  = isInjActive()    ? injUs/1000.0f   : -1.0f;
     float iacPct  = isIacActive()    ? getIacDuty()    : -1.0f;
     float iacFreq = isIacActive()    ? getIacFreqHz()  :  0.0f;
-    char buf[300];
+    float cltV, iatV;
+    float cltC    = readTempC(PIN_CLT, cltRpu, &cltV);
+    float iatC    = readTempC(PIN_IAT, iatRpu, &iatV);
+    char buf[420];
     noInterrupts(); uint32_t sc = syncCount; interrupts();
     snprintf(buf, sizeof(buf),
         "{\"r\":%.0f,\"a\":%.1f,\"d\":%.2f,\"t\":%d,\"f\":%d,\"s\":%d,\"sc\":%lu"
         ",\"m\":%.1f,\"mv\":%.3f,\"i\":%.2f,\"c\":%.1f,\"cf\":%.1f"
+        ",\"ct\":%.1f,\"it\":%.1f,\"cv\":%.3f,\"iv\":%.3f"
         ",\"k\":%d,\"kc\":%lu,\"kt\":%d"
+        ",\"ac\":%d,\"ae\":%d,\"ao\":%.1f,\"te\":%d"
         ",\"lc\":%d,\"la\":%d,\"lb\":%d}",
         rpm, adv, dwell, tooth, (int)(frac*100), sync?1:0, (unsigned long)sc,
         mapKpa, mapV, injMsV, iacPct, iacFreq,
-        (int)knockLevel, (unsigned long)knockCount, (int)knockThresh,
+        cltC, iatC, cltV, iatV,
+        PIN_KNOCK < 0 ? -1 : (int)knockLevel, (unsigned long)knockCount, (int)knockThresh,
+        (int)acState, (int)acError, calibOffset, digitalRead(PIN_TE1) ? 1 : 0,
         logCount, logActive?1:0, logBytes);
     ws.textAll(buf);
 }
@@ -519,6 +711,7 @@ void setup()
     // with early setup() on ESP32-C5) finish before the first flash/NVS access.
     delay(500);
     Serial.println("RPM,ADV,DWELL,TOOTH,SYNC");
+    pinMode(PIN_TE1, OUTPUT); digitalWrite(PIN_TE1, LOW);   // never bridge TE1 at boot
     pinMode(PIN_NE,  INPUT); pinMode(PIN_IGT, INPUT);
     pinMode(PIN_CAL, INPUT_PULLUP);
     pinMode(PIN_INJ, INPUT); pinMode(PIN_IAC, INPUT);
@@ -539,6 +732,9 @@ void setup()
     lblInj      = prefs.getString("lbl_inj", "Injektor");
     lblIac      = prefs.getString("lbl_iac", "IAC");
     knockThresh    = (uint8_t)prefs.getUInt("knock_thr", 30);
+    cltRpu         = prefs.getFloat("clt_rpu", 2200.0f);
+    iatRpu         = prefs.getFloat("iat_rpu", 2200.0f);
+    calAngle       = prefs.getFloat("cal_angle", 10.0f);
     otaAutoEnabled = prefs.getBool("ota_auto", true);
 
     // OLED auto-detect disabled: Wire.begin() crashes on ESP32-C5 eco2 because
@@ -612,16 +808,32 @@ void setup()
     });
 
     // ── Calibration ──────────────────────────────────────────────────────────
+    // Manual calibration: TE1 already bridged by hand → use the spark angle
+    // of the last 2 s (must be stable).
     server.on("/cal", HTTP_POST, [](AsyncWebServerRequest* req) {
-        noInterrupts(); bool s=synced; int tc=toothCount; interrupts();
+        noInterrupts(); bool s=synced; interrupts();
         if (!s) { req->send(400,"application/json","{\"error\":\"Motor ikke synkroniseret\"}"); return; }
-        float angle = req->hasParam("angle",true) ? req->getParam("angle",true)->value().toFloat() : 10.0f;
+        float angle = req->hasParam("angle",true) ? req->getParam("angle",true)->value().toFloat() : calAngle;
         angle = constrain(angle, -10.0f, 60.0f);
-        calibOffset = tc*10.0f + angle;
+        float mean, spread;
+        int n = sparkStats(millis() - 2000UL, mean, spread);
+        if (n < 8)        { req->send(400,"application/json","{\"error\":\"For få gnister – er IGT tilsluttet?\"}"); return; }
+        if (spread > 2.0f){ req->send(400,"application/json","{\"error\":\"Ustabil tænding – er TE1 brokoblet?\"}"); return; }
+        calibOffset = mean + angle; if (calibOffset >= 360.0f) calibOffset -= 360.0f;
         prefs.putFloat("offset", calibOffset);
         char buf[40]; snprintf(buf,sizeof(buf),"{\"offset\":%.1f}",calibOffset);
         Serial.printf("CAL (web): offset=%.1f angle=%.1f\n", calibOffset, angle);
         req->send(200, "application/json", buf);
+    });
+    // Automatic calibration via TE1 optocoupler (see autoCalStep)
+    server.on("/cal/auto", HTTP_POST, [](AsyncWebServerRequest* req) {
+        float angle = req->hasParam("angle",true) ? req->getParam("angle",true)->value().toFloat() : calAngle;
+        startAutoCal(angle);
+        req->send(200, "application/json", "{\"ok\":true}");
+    });
+    server.on("/cal/auto/stop", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (acState >= 1 && acState <= 3) stopAutoCal(0, 0);
+        req->send(200, "application/json", "{\"ok\":true}");
     });
     server.on("/cal/set", HTTP_POST, [](AsyncWebServerRequest* req) {
         if (!req->hasParam("offset",true)) { req->send(400,"application/json","{\"error\":\"missing\"}"); return; }
@@ -757,7 +969,34 @@ void setup()
             req->send(LittleFS, "/ignlog.csv", "text/csv", true);
         else
             req->send(200,"text/csv",
-                "timestamp_ms,rpm,adv_btdc,dwell_ms,tooth,frac,sync,map_kpa,inj_ms,iac_pct\n");
+                "timestamp_ms,rpm,adv_btdc,dwell_ms,tooth,frac,sync,map_kpa,inj_ms,iac_pct,clt_c,iat_c,te1\n");
+    });
+
+    // ── Temperatures ─────────────────────────────────────────────────────────
+    auto tempJson = [](char* buf, size_t n) {
+        float cv, iv;
+        float ct = readTempC(PIN_CLT, cltRpu, &cv);
+        float it = readTempC(PIN_IAT, iatRpu, &iv);
+        snprintf(buf, n,
+            "{\"clt\":%.1f,\"iat\":%.1f,\"cltV\":%.3f,\"iatV\":%.3f,\"cltRpu\":%.0f,\"iatRpu\":%.0f}",
+            ct, it, cv, iv, cltRpu, iatRpu);
+    };
+    server.on("/temp", HTTP_GET, [tempJson](AsyncWebServerRequest* req) {
+        char buf[160]; tempJson(buf, sizeof(buf));
+        req->send(200, "application/json", buf);
+    });
+    // Cold-soaked engine: both sensors at ambient → solve the OEM pull-up resistors
+    server.on("/temp/cal", HTTP_POST, [tempJson](AsyncWebServerRequest* req) {
+        if (!req->hasParam("ambient", true)) { req->send(400,"application/json","{\"error\":\"missing ambient\"}"); return; }
+        float amb = constrain(req->getParam("ambient", true)->value().toFloat(), -30.0f, 45.0f);
+        float rNtc = ntcResForTemp(amb);
+        float v;
+        v = readSensorV(PIN_CLT);
+        if (v > 0.05f && v < 4.90f) { cltRpu = constrain(rNtc * (5.0f - v) / v, 300.0f, 20000.0f); prefs.putFloat("clt_rpu", cltRpu); }
+        v = readSensorV(PIN_IAT);
+        if (v > 0.05f && v < 4.90f) { iatRpu = constrain(rNtc * (5.0f - v) / v, 300.0f, 20000.0f); prefs.putFloat("iat_rpu", iatRpu); }
+        char buf[160]; tempJson(buf, sizeof(buf));
+        req->send(200, "application/json", buf);
     });
 
     // ── Knock sensor ─────────────────────────────────────────────────────────
@@ -862,6 +1101,10 @@ void loop()
         }
     }
 
+    collectSpark();
+    static uint32_t lastAc = 0;
+    if (millis() - lastAc >= 50) { lastAc = millis(); autoCalStep(); }
+
     static uint32_t lastPrint = 0, lastWs = 0;
     uint32_t now = millis();
 
@@ -875,7 +1118,7 @@ void loop()
         logSample(rpm, adv, dwell, tooth, frac, sync);
         int   oAdc    = readMapADC();
         float oMapKpa = (oAdc > 300 && oAdc < 3800) ? adcToMapKpa(oAdc) : -1.0f;
-        float oInj    = isInjActive() ? injMs        : -1.0f;
+        float oInj    = isInjActive() ? injUs/1000.0f : -1.0f;
         float oIac    = isIacActive() ? getIacDuty() : -1.0f;
         updateOled(rpm, adv, dwell, tooth, frac, sync, oMapKpa, oInj, oIac);
     }
@@ -896,10 +1139,10 @@ void loop()
         } else if (!calDown && calPressedAt) {
             uint32_t held = millis() - calPressedAt;
             if (held > 50 && held < 3000) {
-                noInterrupts(); int tc = toothCount; interrupts();
-                calibOffset = tc * 10.0f + 10.0f;
-                prefs.putFloat("offset", calibOffset);
-                Serial.printf("CAL: offset=%.1f\n", calibOffset);
+                // Short press: start auto-calibration (TE1 bridged by the optocoupler,
+                // or by hand with a switch – the routine works either way)
+                startAutoCal(calAngle);
+                Serial.println("CAL: auto-calibration started");
             }
             calPressedAt = 0;
         }

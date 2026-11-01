@@ -64,13 +64,13 @@ Bemærkninger:
 - Tune-punkter at rette:
   - `inj4CylPairing` = "1+4 & 2+3", men ledningsnettet parrer 1+3 / 2+4. Vælg "1+3 & 2+4", hvis firmwaren har valget.
   - `iacAlgorithm` = On/Off, men ventilen er en PWM rotary solenoid → "PWM Open loop", 1 kanal.
-  - `TrigAng` = -90° er ikke verificeret. Den rigtige værdi kommer fra ESP32-loggerens kalibrering (TE1–E1) eller stroboskop.
+  - `TrigAng` = -90° er ikke verificeret. Den rigtige værdi kommer fra ESP32-loggerens auto-kalibrering (TE1–E1) eller stroboskop.
   - `egoType` = Wide Band, men O2-tabellen er genereret fra `nb.inc` (smalbånd). Det skal passe sammen.
   - Tændingskortet har 48° ved lav belastning og op til 33° ved 100 kPa. Det er aggressivt for en motor uden knock-styring. OEM-intervallet ved 2000 o/min er 13–44°.
 
 ## 4. Måling af de originale kort
 
-ESP32-loggeren i dette repo tappes parallelt bag på OEM-stikket. Se `OEM-aflytning_ESP32-C5.html`, `../docs/wiring-4e-fe.svg` og tabellen med ledningsfarver i hoved-README'en. Planen for omregning til VE- og tændingstabeller står i `Plan_maaling_af_OEM-kort.md`.
+ESP32-loggeren i dette repo (Waveshare ESP32-C5-WIFI6-KIT) tappes parallelt bag på OEM-stikket og logger også kølevands- og indsugningstemperatur. Kalibreringen sker automatisk via en optokobler på TE1. Se `OEM-aflytning_ESP32-C5.html`, `../docs/wiring-4e-fe.svg` og tabellen med ledningsfarver i hoved-README'en. Planen for omregning til VE- og tændingstabeller står i `Plan_maaling_af_OEM-kort.md`.
 
 ## 5. Kendte specifikationer (sanity-check)
 
