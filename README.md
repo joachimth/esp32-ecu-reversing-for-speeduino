@@ -50,12 +50,12 @@ IGT1 / PIM (5 V):                 INJ #10 / RSO (12 V + induktive spidser):
 **Valgfrit** (kan tilføjes senere – auto-detekteres):
 | Pin    | Signal         | ECU-pin (4E-FE)       | Interface                    |
 |--------|----------------|-----------------------|------------------------------|
-| GPIO2  | MAP sensor     | A4 PIM                | 10 k / 18 k (5 V)            |
+| GPIO4  | MAP sensor     | A4 PIM                | 10 k / 18 k (5 V)            |
 | GPIO15 | Fuel injektor  | A12 #10 (cyl. 1+3)    | 33 k / 10 k + BAT54S clamp   |
 | GPIO23 | IAC ventil PWM | A14 RSO               | 33 k / 10 k + BAT54S clamp   |
 | GPIO3  | Knock sensor   | **ikke tilsluttet**   | En deler belaster OEM-ECU'ens piezo-signal |
-| GPIO21 | OLED SDA       | –                     | (ingen – I2C 3.3 V)          |
-| GPIO20 | OLED SCL       | –                     | (ingen – I2C 3.3 V)          |
+| GPIO0  | OLED SDA       | –                     | (ingen – I2C 3.3 V)          |
+| GPIO1  | OLED SCL       | –                     | (ingen – I2C 3.3 V)          |
 
 **Ledningsfarver og kontrolmåling (ECU-tilgangsledninger)**
 
@@ -137,19 +137,21 @@ Auto-opdatering kan slås fra under Diagnostik i dashboardet.
 | GPIO6  | NE crank       | Digital  | A21 / A9           | MAX9926 VR-modul + 10k pull-up | Påkrævet               |
 | GPIO5  | IGT ignition   | Digital  | A6 IGT1            | 10 k / 18 k (5 V)            | Påkrævet                 |
 | GPIO10 | CAL knap       | Digital  | –                  | Intern pull-up               | Påkrævet                 |
-| GPIO2  | MAP sensor     | ADC1_CH2 | A4 PIM             | 10 k / 18 k (5 V)            | Valgfri, auto-detekteret |
+| GPIO4  | MAP sensor     | ADC1_CH3 | A4 PIM             | 10 k / 18 k (5 V)            | Valgfri, auto-detekteret |
 | GPIO15 | Fuel injektor  | Digital  | A12 #10            | 33 k / 10 k + BAT54S         | Valgfri, auto-detekteret |
 | GPIO23 | IAC ventil PWM | Digital  | A14 RSO            | 33 k / 10 k + BAT54S         | Valgfri, auto-detekteret |
-| GPIO3  | Knock sensor   | ADC1_CH3 | ikke tilsluttet    | –                            | Samples, men ubrugt på 4E-FE |
-| GPIO21 | OLED SDA       | I2C      | –                  | –                            | Reserveret (OLED p.t. deaktiveret) |
-| GPIO20 | OLED SCL       | I2C      | –                  | –                            | Reserveret (OLED p.t. deaktiveret) |
+| GPIO3  | Knock sensor   | ADC1_CH2 | ikke tilsluttet    | –                            | Samples, men ubrugt på 4E-FE |
+| GPIO0  | OLED SDA       | I2C      | –                  | –                            | Reserveret (OLED p.t. deaktiveret) |
+| GPIO1  | OLED SCL       | I2C      | –                  | –                            | Reserveret (OLED p.t. deaktiveret) |
 
 **Reserverede pins der ikke må bruges:**
-- GPIO12–14 → intern SPI flash i modulet
-- GPIO18/19 → native USB D+/D-
+- GPIO16–22 → SPI flash/PSRAM i modulet
+- GPIO13/14 → USB-JTAG (USB D−/D+)
+- GPIO11/12 → UART0 TX/RX (Serial)
+- Strapping-pins: GPIO2, GPIO7, GPIO25, GPIO27, GPIO28 (GPIO27 = RGB-LED, GPIO28 = BOOT-knap på DevKitC). Ingen eksterne signaler her
 - GPIO11 → UART0 TX (Serial monitor)
 
-> OLED display er kodet men deaktiveret pga. en I2C HAL-bug i arduino-esp32 3.3.8 på ESP32-C5. Aktiveres automatisk når upstream-fixet kommer.
+> OLED display er kodet men deaktiveret. Crashet skyldtes sandsynligvis, at SDA/SCL sad på GPIO21/20, som er flash-pins på ESP32-C5. Pins er nu GPIO0/1, og OLED'en aktiveres, når det er testet over USB.
 
 ---
 
@@ -211,7 +213,7 @@ Se [`firmware/platformio.ini`](firmware/platformio.ini) for detaljer.
 | RPM OK, Sync = 0 | Missing tooth ikke detekteret | Kør motoren over 500 RPM nogle sek. |
 | Advance ser forkert ud | Offset ikke kalibreret | Slå S1 til (TE1–E1), tryk CAL ved varm tomgang, slå S1 fra |
 | IGT/dwell = 0 | IGT når ikke HIGH-niveau | IGT er 5 V – brug 10k/18k, ikke 33k/10k |
-| MAP-kort vises ikke | Sensor ikke aktiv | Sensor skal levere 0.24–3.06 V på GPIO2 |
+| MAP-kort vises ikke | Sensor ikke aktiv | Sensor skal levere 0.24–3.06 V på GPIO4 |
 | Kan ikke finde IgnLogger WiFi | ESP32 ikke booted | Tjek USB-strøm, kig efter "AP ready" på serial |
 | Browser viser ikke captive portal | Manuel tilgang | Tast http://192.168.4.1 direkte |
 

@@ -12,14 +12,14 @@ Reverse engineer Toyota 4E-FE OEM ECU via signalanalyse på NE (crank) og IGT (i
 | GPIO6  | NE crank       | Digital   | MAX9926 VR-modul, OUT + 10k pull-up til 3V3 | Påkrævet (ECU A21 NE+ / A9 NE−) |
 | GPIO5  | IGT ignition   | Digital   | 10k/18k deler (5V)    | Påkrævet (ECU A6 IGT1) |
 | GPIO10 | CAL knap       | Digital   | Intern pull-up        | Påkrævet          |
-| GPIO2  | MAP sensor     | ADC1_CH2  | 10k/18k deler (5V)    | Valgfri, auto-detekteret (ECU A4 PIM) |
+| GPIO4  | MAP sensor     | ADC1_CH3  | 10k/18k deler (5V)    | Valgfri, auto-detekteret (ECU A4 PIM) |
 | GPIO15 | Fuel injektor  | Digital   | 33k/10k deler + BAT54S clamp (12V) | Valgfri, auto-detekteret (ECU A12 #10) |
 | GPIO23 | IAC ventil PWM | Digital   | 33k/10k deler + BAT54S clamp (12V) | Valgfri, auto-detekteret (ECU A14 RSO) |
-| GPIO3  | Knock sensor   | ADC1_CH3  | Ikke tilsluttet på 4E-FE | Altid samplet, men ubrugt (deler belaster OEM piezo) |
-| GPIO21 | OLED SDA       | I2C       | Ingen                  | Valgfri, auto-detekteret |
-| GPIO20 | OLED SCL       | I2C       | Ingen                  | Valgfri, auto-detekteret |
+| GPIO3  | Knock sensor   | ADC1_CH2  | Ikke tilsluttet på 4E-FE | Altid samplet, men ubrugt (deler belaster OEM piezo) |
+| GPIO0  | OLED SDA       | I2C       | Ingen                  | Valgfri, auto-detekteret |
+| GPIO1  | OLED SCL       | I2C       | Ingen                  | Valgfri, auto-detekteret |
 
-Reserverede pins der **ikke** må bruges: GPIO12–14 (intern SPI flash i modulet), GPIO18/19 (native USB D+/D-), GPIO11 (UART0 TX → Serial monitor).
+Reserverede pins der **ikke** må bruges (kilde: ESP-IDF GPIO summary for ESP32-C5 + arduino-esp32 `variants/esp32c5`): GPIO16–22 (SPI flash/PSRAM), GPIO13/14 (USB-JTAG), GPIO11/12 (UART0 TX/RX → Serial). Strapping-pins GPIO2, 7, 25, 27, 28 må ikke drives udefra (GPIO27 = RGB-LED, GPIO28 = BOOT-knap). ADC1 = GPIO1–6 (CH0–CH5).
 
 ### Tilslutning til Toyota 4E-FE (Corolla E11, ECU 89661-1A760)
 Loggeren tappes **parallelt bag på OEM-ECU'ens stik**, mens bilen kører på original-ECU'en. Fuldt diagram: `docs/wiring-4e-fe.svg`.
@@ -315,7 +315,9 @@ Web flasher er live på:
 |---------|---------|--------|
 | ~~Advance/RPM forkert i tand 0~~ | ~~Efter hullet blev `toothPeriodUs` sat til hele hullets varighed (3 perioder), så frac/advance/RPM i tand 0 var op til ~6,7° forkerte.~~ | **Fikset** – `dt / MISSING_GAP_PERIODS` ved hullet |
 | ~~IGT-deler forkert~~ | ~~Dokumentationen angav 33k/10k for IGT (5 V-signal → ~1,2 V, aldrig HIGH) og en ren deler på NE (VR-sensor).~~ | **Fikset** – 10k/18k på IGT, MAX9926 på NE |
-| OLED deaktiveret | `Wire.begin()` crasher ESP32-C5 eco2 pga. legacy `i2c_driver_install()` API i arduino-esp32 3.3.8. `oledOk = false` hardkodet i `setup()`. | Afventer upstream fix |
+| ~~MAP på strapping-pin~~ | ~~MAP sad på GPIO2 (strapping-pin); deleren drev pin'en ved boot.~~ | **Fikset** – flyttet til GPIO4 (ADC1_CH3) |
+| ~~OLED på flash-pins~~ | ~~SDA/SCL på GPIO21/20, som er SPI flash på ESP32-C5.~~ | **Fikset** – GPIO0/1. OLED stadig deaktiveret indtil test |
+| OLED deaktiveret | `Wire.begin()` crashede ESP32-C5. Oprindeligt tilskrevet legacy I2C-API i arduino-esp32 3.3.8, men SDA/SCL sad på flash-pins (GPIO21/20). `oledOk = false` hardkodet i `setup()`. | Afventer test over USB på GPIO0/1 |
 | ~~IAC duty% forkert~~ | ~~`iacISR()` målte edge-to-edge (dvs. low-time), ikke rising-to-rising period. Duty% var kun korrekt ved 50% duty.~~ | **Fikset** – tilføjet `lastIacRiseUs` |
 | ~~Sync-flag ryddes ikke~~ | ~~`synced` sættes aldrig `false` igen efter signaltab. Sync-kort viste "OK" og CAL-knap forblev aktiv ved RPM=0.~~ | **Fikset** – `sync=false` i stale-check |
 | ~~CAL `delay(1000)`~~ | ~~Tryk på CAL-knap blokerede main loop i 1 sek (WebSocket, DNS, serial).~~ | **Fikset** – non-blocking debounce |
@@ -343,8 +345,8 @@ Web flasher er live på:
 - [x] Dwell i grader (°) beregnet fra dwell_ms × RPM, vist i dwell-kort)
 - [x] Skærmvågen via Wake Lock API (forhindrer telefon i at slukke under monitorering)
 - [x] Konfigurerbar kalibreringsvinkel (POST /cal angle=X, default 10° BTDC)
-- [x] Knock sensor (GPIO3/ADC1_CH3, peak-to-peak amplitude 64 ADC-reads, tærskel NVS-gemt, dashboard bar)
-- [~] OLED SSD1306 128×64 (GPIO21=SDA/GPIO20=SCL) – kode implementeret, men **deaktiveret** pga. ESP32-C5 I2C HAL bug i arduino-esp32 3.3.8
+- [x] Knock sensor (GPIO3/ADC1_CH2, peak-to-peak amplitude 64 ADC-reads, tærskel NVS-gemt, dashboard bar)
+- [~] OLED SSD1306 128×64 (GPIO0=SDA/GPIO1=SCL) – kode implementeret, men **deaktiveret**. Tidligere på GPIO21/20, som er SPI flash på C5 – sandsynlig årsag til crashet. Skal testes over USB før genaktivering
 - [x] RPM progress bar (3-farvet grøn/amber/rød bar under RPM-tallet op til 7000)
 - [x] Farvekodet Advance-værdi (blå/grøn/orange/amber/rød efter tændings-zone)
 - [x] Optagelses-indikator (pulserende rød prik i header ved aktiv logning)
@@ -358,8 +360,8 @@ Web flasher er live på:
 - [ ] Valgfri INJ2-kanal til #20 (A25, cyl. 2+4) for at bekræfte, at grupperne er ens
 
 ### v2 – OLED standalone display
-> **Status**: Kode implementeret, men OLED er p.t. deaktiveret (`oledOk = false`) pga. ESP32-C5 I2C HAL bug i arduino-esp32 3.3.8. Afventer native C5 I2C support.
-- [~] SSD1306 128x64 OLED via I2C (GPIO21=SDA, GPIO20=SCL) – kode klar, hardware ikke aktiv
+> **Status**: Kode implementeret, men OLED er p.t. deaktiveret (`oledOk = false`). Crashet skyldtes sandsynligvis, at SDA/SCL sad på flash-pins (GPIO21/20). Nu GPIO0/1 – testes over USB før genaktivering.
+- [~] SSD1306 128x64 OLED via I2C (GPIO0=SDA, GPIO1=SCL) – kode klar, hardware ikke aktiv
 - [~] Live gauge ved bilen uden PC/telefon:
   ```
   RPM: 875   ADV: 10.1°

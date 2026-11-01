@@ -13,9 +13,12 @@
 #include "version.h"
 
 // ─── Pins (ESP32-C5-WROOM-1) ─────────────────────────────────────────────────
-// ADC1 pins (GPIO0-6) are reliable with WiFi active.
-// GPIO12-14 are used by SPI flash inside the module – do not use.
-// GPIO18/19 are USB D+/D-.
+// ESP32-C5 (ESP-IDF GPIO summary + arduino-esp32 variant):
+//   ADC1: GPIO1–6 = ADC1_CH0–CH5 (reliable with WiFi active).
+//   GPIO16–22 = SPI flash/PSRAM – do not use.
+//   GPIO13/14 = USB-JTAG (USB D-/D+).   GPIO11/12 = UART0 TX/RX (Serial).
+//   Strapping pins: GPIO2, 7, 25, 27, 28 – keep external drivers off them.
+//   GPIO27 = on-board RGB LED, GPIO28 = BOOT button on the DevKitC.
 //
 // Interface to the Toyota 4E-FE OEM ECU connector (tapped in parallel, listen only).
 // See docs/wiring-4e-fe.svg.
@@ -24,22 +27,23 @@
 //                   (AC, amplitude grows with RPM) – never a plain resistor divider.
 //   IGT   → GPIO5   ECU A6 IGT1, 5V logic → 10k/18k divider
 //   CAL   → GPIO10  push button to GND (internal pull-up)
-//   MAP   → GPIO2   ECU A4 PIM, 0-5V → 10k/18k divider, ADC1_CH2
+//   MAP   → GPIO4   ECU A4 PIM, 0-5V → 10k/18k divider, ADC1_CH3
+//           (not GPIO2: strapping pin, the divider would drive it at boot)
 //   INJ   → GPIO15  ECU A12 #10 (cyl 1+3), 12V low side → 33k/10k + BAT54S clamp
 //           (GPIO11 = UART0 TX, brugt af Serial → kan ikke bruges til INJ)
 //   IAC   → GPIO23  ECU A14 RSO, 12V PWM low side → 33k/10k + BAT54S clamp
-//   KNOCK → GPIO3   not connected on 4E-FE (a divider loads the OEM piezo signal)
-//   SDA   → GPIO21
-//   SCL   → GPIO20
+//   KNOCK → GPIO3   ADC1_CH2, not connected on 4E-FE (a divider loads the OEM piezo signal)
+//   SDA   → GPIO0   (arduino-esp32 default I2C pins for C5)
+//   SCL   → GPIO1   (GPIO20/21 are SPI flash on C5 – never use them)
 #define PIN_NE     6
 #define PIN_IGT    5
 #define PIN_CAL   10
-#define PIN_MAP    2   // ADC1_CH2
+#define PIN_MAP    4   // ADC1_CH3
 #define PIN_INJ   15
 #define PIN_IAC   23
-#define PIN_KNOCK  3   // ADC1_CH3
-#define PIN_SDA   21
-#define PIN_SCL   20
+#define PIN_KNOCK  3   // ADC1_CH2
+#define PIN_SDA    0
+#define PIN_SCL    1
 
 const char* AP_SSID = "IgnLogger";
 const char* AP_PASS = "ignition1";
@@ -539,7 +543,10 @@ void setup()
     // OLED auto-detect disabled: Wire.begin() crashes on ESP32-C5 eco2 because
     // arduino-esp32 3.3.8 uses the legacy i2c_driver_install() API which accesses
     // I2C peripheral registers at addresses that don't match C5 eco2 hardware.
-    // TODO: re-enable once arduino-esp32 has native ESP32-C5 I2C HAL support.
+    // NOTE: the OLED was previously wired to GPIO21/20, which are SPI flash pins on
+    // the ESP32-C5 – that alone crashes the chip. Pins are now GPIO0/1. Test the
+    // OLED over USB before re-enabling it here (a boot crash would block OTA).
+    // TODO: re-enable once verified on hardware.
     oledOk = false;
 
     LittleFS.begin(true);
