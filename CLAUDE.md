@@ -68,13 +68,14 @@ TE1 (A2):  GPIO26 ---[330]--- PC817 LED --- GND ;  PC817 C = A2 TE1, E = A24 E1
 - IGT er 5 V: en 33k/10k-deler giver kun ~1,2 V og registreres aldrig som HIGH.
 
 ### Logger-PCB (EasyEDA, `hardware/`)
-`SCH_Logger_2026-11-01.pdf` er gennemgået 01-11-2026. Rettelser er markeret på `SCH_Logger_2026-11-01_rettelser.png`:
-1. R8 (RSO-deler) 18k → 10k.
-2. U3 MAX9924 ben 9 INT_THRS: GND → 5V.
-3. U3 ben 6 ZERO_EN: GND → 5V.
-4. U3 ben 4 BIAS: GND → 1k/1k-deler fra 5V med 100 nF ∥ 10 µF.
-5. R6 4,7k over NE+/NE− fjernes.
-Anbefalet: D1–D4 1N4148WS → 1N5819WS (JLC basic C191023, samme SOD-323-footprint) eller BAT54S (C7420333, preferred extended), C1 1 nF → 470 pF, stik til bil-ledninger og CAL-knap, monteringshuller.
+- `SCH_Logger_2026-11-01.pdf`: første version. Fejlene er markeret på `SCH_Logger_2026-11-01_rettelser.png`.
+- `SCH_Logger_2026-11-01_rev2.pdf`: gennemgået 01-11-2026, **alle rettelser er lavet**:
+  - R8 er 10k.
+  - MAX9924 står i Mode A1: ZERO_EN og INT_THRS til 5V, EXT NC, BIAS = R20/R6 1k/1k + C7 100 nF + C8 10 µF.
+  - Modstanden over NE+/NE− er fjernet. C9 = 470 pF.
+  - D1/D2/D7/D8 er 1N5819WS.
+  - Skrueterminaler P1–P6 (5,0 mm) til E1/TE1, THW/THA, NE+/NE−, IGT1/PIM, CAL/GND og #10/RSO.
+- Pin-mappingen til U2 (Waveshare-header) matcher firmwaren.
 
 ## Signallogik
 - **NE**: VR-sensor på 36-2 triggerhjul, konditioneret af MAX9924. Første tand efter hullet = tand 0; offset til TDC findes ved kalibrering.
