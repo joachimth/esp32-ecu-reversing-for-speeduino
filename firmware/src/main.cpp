@@ -30,7 +30,8 @@
 //   MAP   → GPIO4   ECU A4 PIM, 0-5V → 10k/18k divider, ADC1_CH3
 //           (not GPIO2: strapping pin, the divider would drive it at boot)
 //   INJ   → GPIO15  ECU A12 #10 (cyl 1+3), 12V low side → 33k/10k + BAT54S clamp
-//           (GPIO11 = UART0 TX, brugt af Serial → kan ikke bruges til INJ)
+//           (GPIO15 is a plain GPIO on the C5. INJ was moved here from the old
+//            ESP32 layout because GPIO11 is UART0 TX, used by Serial.)
 //   IAC   → GPIO23  ECU A14 RSO, 12V PWM low side → 33k/10k + BAT54S clamp
 //   KNOCK → GPIO3   ADC1_CH2, not connected on 4E-FE (a divider loads the OEM piezo signal)
 //   SDA   → GPIO0   (arduino-esp32 default I2C pins for C5)
