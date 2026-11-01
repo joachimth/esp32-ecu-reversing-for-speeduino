@@ -13,8 +13,8 @@ Reverse engineer Toyota 4E-FE OEM ECU via signalanalyse på NE (crank) og IGT (i
 | GPIO9  | IGT ignition   | Digital   | 10k/18k deler (5V)    | Påkrævet (ECU A6 IGT1) |
 | GPIO10 | CAL knap       | Digital   | Intern pull-up        | Starter auto-kalibrering |
 | GPIO4  | MAP sensor     | ADC1_CH3  | 10k/18k deler (5V)    | Valgfri, auto-detekteret (ECU A4 PIM) |
-| GPIO3  | Kølevand (THW) | ADC1_CH2  | 1M/1.8M deler + 100 nF | Valgfri, auto-detekteret (ECU A3 THW) |
-| GPIO5  | Indsugning (THA) | ADC1_CH4 | 1M/1.8M deler + 100 nF | Valgfri, auto-detekteret (ECU A5 THA) |
+| GPIO3  | Kølevand (THW) | ADC1_CH2  | 1M/2M deler + 100 nF | Valgfri, auto-detekteret (ECU A3 THW) |
+| GPIO5  | Indsugning (THA) | ADC1_CH4 | 1M/2M deler + 100 nF | Valgfri, auto-detekteret (ECU A5 THA) |
 | GPIO24 | Fuel injektor  | Digital   | 33k/10k deler + BAT54S clamp (12V) | Valgfri, auto-detekteret (ECU A12 #10) |
 | GPIO23 | IAC ventil PWM | Digital   | 33k/10k deler + BAT54S clamp (12V) | Valgfri, auto-detekteret (ECU A14 RSO) |
 | GPIO26 | TE1-styring    | Udgang    | PC817 optokobler, 330 Ω | HIGH = TE1–E1 brokoblet (kun under auto-kalibrering) |
@@ -46,7 +46,7 @@ IGT1 (A6) / PIM (A4), 5V:      SIG ---[10k]---+--- GPIO
 
 THW (A3) / THA (A5), NTC:      SIG ---[1M]----+------+--- GPIO     (belastning < 0,5 % på OEM-målingen)
                                               |      |
-                                            [1.8M] [100n]
+                                            [2M]   [100n]
                                               |      |
                                              GND    GND
 
@@ -94,7 +94,8 @@ advance    = wrap180(calibOffset - sparkAngle)          [° BTDC]
 rpm        = 60_000_000 / (toothPeriodUs * 36)
 dwell      = (igtFall_us - igtRise_us) / 1000           [ms]
 vGpio      = analogRead(pin) * 3.3 / 4095
-vSensor    = vGpio * 1.556                              [10k/18k og 1M/1.8M: (10+18)/18]
+vSensor    = vGpio * 1.556                              [MAP 10k/18k: (10+18)/18]
+vSensor    = vGpio * 1.5                                [THW/THA 1M/2M: (1+2)/2]
 map_kPa    = mapKpaMin + (vSensor - mapVmin) / (mapVmax - mapVmin) * (mapKpaMax - mapKpaMin)
 R_ntc      = Rpu * vSensor / (5 - vSensor)
 T_ntc      = 1 / (A + B·ln R + C·ln³ R) - 273.15        A=1.219325e-3, B=2.785840e-4, C=3.760559e-8
@@ -411,7 +412,7 @@ Web flasher er live på:
 - [x] ~~IAC stepper decodning~~ – ikke relevant: Corolla E11 4E-FE (1997+) bruger en 1-spolet rotary solenoid (RSO/RSD) med PWM, som allerede måles korrekt
 - [x] Gnistvinkel fanget i IGT-interrupt (advance ved gnisten)
 - [x] Auto-kalibrering via TE1-optokobler (GPIO26) med stabilitetstjek og automatisk frigivelse
-- [x] THW/THA-temperaturer (højimpedant 1M/1.8M, Toyota NTC, pull-up-kalibrering)
+- [x] THW/THA-temperaturer (højimpedant 1M/2M, Toyota NTC, pull-up-kalibrering)
 - [ ] Valgfri INJ2-kanal til #20 (A25, cyl. 2+4) for at bekræfte, at grupperne er ens
 
 ### v2 – OLED standalone display

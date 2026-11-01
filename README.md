@@ -18,7 +18,7 @@ Loggeren sidder **parallelt bag på OEM-ECU'ens stik** (backprobe-nåle eller T-
 Du skal bruge:
 - 1× **Waveshare ESP32-C5-WIFI6-KIT** (ESP32-C5-WROOM-1 N16R4, USB-C), forsynet fra en **powerbank** (ikke bilens 12 V – undgår stelsløjfer)
 - 1× **MAX9926 VR-modul** (fx et Speeduino VR-board), forsynet fra boardets 5V-pin
-- Modstande: **2× 10 kΩ + 2× 18 kΩ** (IGT, MAP), **2× 1 MΩ + 2× 1,8 MΩ** (THW, THA), **2× 33 kΩ + 2× 10 kΩ** (INJ, IAC), **1× 10 kΩ** (pull-up på MAX9926 OUT), **1× 330 Ω** (optokobler-LED)
+- Modstande: **2× 10 kΩ + 2× 18 kΩ** (IGT, MAP), **2× 1 MΩ + 2× 2 MΩ** (THW, THA), **2× 33 kΩ + 2× 10 kΩ** (INJ, IAC), **1× 10 kΩ** (pull-up på MAX9926 OUT), **1× 330 Ω** (optokobler-LED)
 - **2× 100 nF** (THW, THA ved ADC-pin) og **2× BAT54S** (eller 2× 1N4148 pr. kanal) som clamp på INJ og IAC
 - 1× **PC817 optokobler** (TE1–E1-bro til automatisk kalibrering) og 1× momentan trykknap (CAL)
 
@@ -30,7 +30,7 @@ NE (VR-sensor, ± AC):
 
 IGT1 / PIM (5 V):         THW / THA (NTC, høj impedans):   INJ #10 / RSO (12 V + induktive spidser):
   ECU ──[10k]──┬── GPIO     ECU ──[1M]──┬──────┬── GPIO      ECU ──[33k]──┬────────┬── GPIO
-             [18k]                    [1.8M] [100n]                     [10k]   BAT54S → 3V3 og GND
+             [18k]                    [2M]   [100n]                     [10k]   BAT54S → 3V3 og GND
                │                        │      │                          │
               GND                      GND    GND                        GND
 
@@ -42,7 +42,7 @@ TE1 (auto-kalibrering):
 >
 > **IGT er 5 V.** En 33k/10k-deler giver kun ca. 1,2 V, og ESP'en ser aldrig HIGH. Brug 10k/18k.
 >
-> **THW/THA** er NTC'er med pull-up i OEM-ECU'en. Med 1 MΩ/1,8 MΩ belaster loggeren dem under 0,5 %, så OEM-ECU'ens egen måling ikke påvirkes. 100 nF ved ADC-pin'en er nødvendig, fordi kilden er højohmig.
+> **THW/THA** er NTC'er med pull-up i OEM-ECU'en. Med 1 MΩ/2 MΩ belaster loggeren dem under 0,5 %, så OEM-ECU'ens egen måling ikke påvirkes. 100 nF ved ADC-pin'en er nødvendig, fordi kilden er højohmig.
 
 **Påkrævet:**
 | Pin    | Signal       | ECU-pin (4E-FE) | Interface                         |
@@ -56,8 +56,8 @@ TE1 (auto-kalibrering):
 | Pin    | Signal         | ECU-pin (4E-FE)       | Interface                    |
 |--------|----------------|-----------------------|------------------------------|
 | GPIO4  | MAP sensor     | A4 PIM                | 10 k / 18 k (5 V)            |
-| GPIO3  | Kølevand (CLT) | A3 THW                | 1 M / 1,8 M + 100 nF         |
-| GPIO5  | Indsugning (IAT) | A5 THA              | 1 M / 1,8 M + 100 nF         |
+| GPIO3  | Kølevand (CLT) | A3 THW                | 1 M / 2 M + 100 nF         |
+| GPIO5  | Indsugning (IAT) | A5 THA              | 1 M / 2 M + 100 nF         |
 | GPIO24 | Fuel injektor  | A12 #10 (cyl. 1+3)    | 33 k / 10 k + BAT54S clamp   |
 | GPIO23 | IAC ventil PWM | A14 RSO               | 33 k / 10 k + BAT54S clamp   |
 | GPIO26 | TE1-styring    | A2 TE1 / A24 E1       | PC817 optokobler, 330 Ω      |
@@ -150,8 +150,8 @@ Board: **Waveshare ESP32-C5-WIFI6-KIT** (ESP32-C5-WROOM-1 N16R4). Kilder: ESP-ID
 | GPIO9  | IGT ignition   | Digital  | A6 IGT1            | 10 k / 18 k (5 V)            | Påkrævet                 |
 | GPIO10 | CAL knap       | Digital  | –                  | Intern pull-up               | Påkrævet                 |
 | GPIO4  | MAP sensor     | ADC1_CH3 | A4 PIM             | 10 k / 18 k (5 V)            | Valgfri, auto-detekteret |
-| GPIO3  | Kølevand (THW) | ADC1_CH2 | A3 THW             | 1 M / 1,8 M + 100 nF         | Valgfri, auto-detekteret |
-| GPIO5  | Indsugning (THA) | ADC1_CH4 | A5 THA           | 1 M / 1,8 M + 100 nF         | Valgfri, auto-detekteret |
+| GPIO3  | Kølevand (THW) | ADC1_CH2 | A3 THW             | 1 M / 2 M + 100 nF         | Valgfri, auto-detekteret |
+| GPIO5  | Indsugning (THA) | ADC1_CH4 | A5 THA           | 1 M / 2 M + 100 nF         | Valgfri, auto-detekteret |
 | GPIO24 | Fuel injektor  | Digital  | A12 #10            | 33 k / 10 k + BAT54S         | Valgfri, auto-detekteret |
 | GPIO23 | IAC ventil PWM | Digital  | A14 RSO            | 33 k / 10 k + BAT54S         | Valgfri, auto-detekteret |
 | GPIO26 | TE1-styring    | Udgang   | A2 TE1 → A24 E1    | PC817 + 330 Ω                | Valgfri (auto-kalibrering) |
@@ -229,7 +229,7 @@ Se [`firmware/platformio.ini`](firmware/platformio.ini) for detaljer.
 | RPM OK, Sync = 0 | Missing tooth ikke detekteret | Kør motoren over 500 RPM nogle sek. |
 | Advance ser forkert ud | Offset ikke kalibreret | Kør Auto-kalibrér ved varm tomgang |
 | Auto-kalibrering: "tændingen låste ikke" | TE1 bliver ikke brokoblet | Tjek optokobleren (C på A2, E på A24, LED via 330 Ω fra GPIO26) |
-| Temperatur vises ikke | Under 0,05 V eller over 4,9 V | Tjek 1M/1,8M-deleren og 100 nF på GPIO3/GPIO5 |
+| Temperatur vises ikke | Under 0,05 V eller over 4,9 V | Tjek 1M/2M-deleren og 100 nF på GPIO3/GPIO5 |
 | IGT/dwell = 0 | IGT når ikke HIGH-niveau | IGT er 5 V – brug 10k/18k, ikke 33k/10k |
 | MAP-kort vises ikke | Sensor ikke aktiv | Sensor skal levere 0.24–3.06 V på GPIO4 |
 | Kan ikke finde IgnLogger WiFi | ESP32 ikke booted | Tjek USB-strøm, kig efter "AP ready" på serial |

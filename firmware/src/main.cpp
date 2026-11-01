@@ -32,9 +32,9 @@
 //   INJ   → GPIO24  ECU A12 #10 (cyl 1+3), 12V low side → 33k/10k + BAT54S clamp
 //   IAC   → GPIO23  ECU A14 RSO, 12V PWM low side → 33k/10k + BAT54S clamp
 //   MAP   → GPIO4   ECU A4 PIM, 0-5V → 10k/18k divider, ADC1_CH3
-//   CLT   → GPIO3   ECU A3 THW, 1M/1.8M divider + 100nF, ADC1_CH2 (high impedance:
+//   CLT   → GPIO3   ECU A3 THW, 1M/2M divider + 100nF, ADC1_CH2 (high impedance:
 //                   does not disturb the OEM ECU's own NTC reading)
-//   IAT   → GPIO5   ECU A5 THA, 1M/1.8M divider + 100nF, ADC1_CH4
+//   IAT   → GPIO5   ECU A5 THA, 1M/2M divider + 100nF, ADC1_CH4
 //   TE1   → GPIO26  output → PC817 optocoupler LED (330R). Transistor C=A2 TE1,
 //                   E=A24 E1. HIGH = TE1 bridged → OEM ECU locks timing at 10° BTDC.
 //   CAL   → GPIO10  push button to GND (internal pull-up) → starts auto-calibration
@@ -106,8 +106,9 @@ static constexpr uint32_t MISSING_GAP_PERIODS = 3;
 static constexpr int      LAST_TOOTH_BEFORE_GAP = 33;  // teeth 0..33, then the gap
 
 // Coolant / intake air temperature (Toyota NTC on THW/THA, ECU pull-up to 5 V).
-// High-impedance divider 1M/1.8M → same 28/18 compensation as the MAP input.
-static constexpr float TEMP_DIV_COMP = 28.0f / 18.0f;
+// High-impedance divider 1M/2M → Vout = Vin × 2/3 → compensate with 3/2.
+// (Max realistic sensor voltage ~4.6 V → 3.07 V at the pin; open sensor 5 V → 3.33 V.)
+static constexpr float TEMP_DIV_COMP = 3.0f / 2.0f;
 // Steinhart-Hart fitted to Toyota THA/THW spec (Haynes: 16.0k@-20°C, 2.45k@20°C, 0.58k@60°C)
 static constexpr float SH_A = 1.219325e-03f, SH_B = 2.785840e-04f, SH_C = 3.760559e-08f;
 float cltRpu = 2200.0f;   // OEM ECU pull-up for THW (Ω) – calibrated via /temp/cal
