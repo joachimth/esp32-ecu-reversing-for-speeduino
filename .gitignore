@@ -1,0 +1,4 @@
+.pio/
+firmware/.pio/
+.vscode/
+node_modules/
