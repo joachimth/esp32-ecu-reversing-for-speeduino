@@ -17,16 +17,18 @@ Loggeren sidder **parallelt bag på OEM-ECU'ens stik** (backprobe-nåle eller T-
 
 Du skal bruge:
 - 1× **Waveshare ESP32-C5-WIFI6-KIT** (ESP32-C5-WROOM-1 N16R4, USB-C), forsynet fra en **powerbank** (ikke bilens 12 V – undgår stelsløjfer)
-- 1× **MAX9926 VR-modul** (fx et Speeduino VR-board), forsynet fra boardets 5V-pin
-- Modstande: **2× 10 kΩ + 2× 18 kΩ** (IGT, MAP), **2× 1 MΩ + 2× 2 MΩ** (THW, THA), **2× 33 kΩ + 2× 10 kΩ** (INJ, IAC), **1× 10 kΩ** (pull-up på MAX9926 OUT), **1× 330 Ω** (optokobler-LED)
-- **2× 100 nF** (THW, THA ved ADC-pin) og **2× BAT54S** (eller 2× 1N4148 pr. kanal) som clamp på INJ og IAC
+- 1× **MAX9924** VR-konditionering (µMAX-10) på loggerprintet, forsynet fra boardets 5V-pin. Konfigureres i Mode A1: ZERO_EN og INT_THRS til 5V, EXT ikke forbundet, BIAS på en 1k/1k-deler (5V/2) med 100 nF + 10 µF. Ingen modstand mellem NE+ og NE−
+- Modstande: **2× 10 kΩ + 2× 18 kΩ** (IGT, MAP), **2× 1 MΩ + 2× 2 MΩ** (THW, THA), **2× 33 kΩ + 2× 10 kΩ** (INJ, IAC), **1× 10 kΩ** (pull-up på MAX9924 OUT), **1× 330 Ω** (optokobler-LED)
+- **2× 100 nF** (THW, THA ved ADC-pin) og **2× BAT54S** (Schottky) som clamp på INJ og IAC. 1N4148 har ca. 0,7 V spændingsfald og clamper først ved ca. 4 V, over ESP32'ens grænse på 3,6 V
 - 1× **PC817 optokobler** (TE1–E1-bro til automatisk kalibrering) og 1× momentan trykknap (CAL)
 
 ```
 NE (VR-sensor, ± AC):
   A21 NE+ ──► IN+ ┌─────────┐ OUT ──┬──────── GPIO8
-  A9  NE− ──► IN− │ MAX9926 │       │
-                  └─────────┘     [10k] → 3V3      (MAX9926 VCC = 5V, GND = E1)
+  A9  NE− ──► IN− │ MAX9924 │       │
+                  └─────────┘     [10k] → 3V3      (MAX9924 VCC = 5V, GND = E1)
+  Mode A1: ZERO_EN (6) + INT_THRS (9) → 5V, EXT (8) NC, BIAS (4) = 1k/1k-deler fra 5V + 100 nF/10 µF.
+  10k i serie på IN+ og IN−, 470 pF–1 nF mellem dem. Ingen modstand over NE+/NE− (belaster OEM-ECU'en).
 
 IGT1 / PIM (5 V):         THW / THA (NTC, høj impedans):   INJ #10 / RSO (12 V + induktive spidser):
   ECU ──[10k]──┬── GPIO     ECU ──[1M]──┬──────┬── GPIO      ECU ──[33k]──┬────────┬── GPIO
@@ -47,7 +49,7 @@ TE1 (auto-kalibrering):
 **Påkrævet:**
 | Pin    | Signal       | ECU-pin (4E-FE) | Interface                         |
 |--------|--------------|-----------------|-----------------------------------|
-| GPIO8  | NE crank     | A21 NE+ / A9 NE− | MAX9926, OUT + 10k pull-up til 3V3 |
+| GPIO8  | NE crank     | A21 NE+ / A9 NE− | MAX9924, OUT + 10k pull-up til 3V3 |
 | GPIO9  | IGT ignition | A6 IGT1 (cyl. 1+4) | 10 k / 18 k (5 V)               |
 | GPIO10 | CAL knap     | –               | Direkte til GND (intern pull-up)  |
 | GND    | Fælles stel  | A24 E1          | Direkte                           |
@@ -83,7 +85,7 @@ Farver fra Haynes diagram 39, sammenholdt med autoelectric.ru. Identificér alti
 | A2 | TE1 | blå-hvid (L-W) | bl-ws | Tænding til: 9–14 V mod stel |
 | A24 | E1 stel | brun (BR) | br | 0 V og under 1 Ω mod chassis |
 
-Splejs uden at skære ledningen over (afisoleret "vindue" med lodning eller T-tap), så original-ECU'en kører uforstyrret. Byttes NE+ og NE− på MAX9926, trigger den på den modsatte flanke. Det fjernes af kalibreringen, men giver det ustabil sync, så byt de to.
+Splejs uden at skære ledningen over (afisoleret "vindue" med lodning eller T-tap), så original-ECU'en kører uforstyrret. Byttes NE+ og NE− på MAX9924, trigger den på den modsatte flanke. Det fjernes af kalibreringen, men giver det ustabil sync, så byt de to.
 
 > **Tip:** Forbind altid ESP32 **GND** til ECU'ens **E1** før noget andet.
 
@@ -146,7 +148,7 @@ Board: **Waveshare ESP32-C5-WIFI6-KIT** (ESP32-C5-WROOM-1 N16R4). Kilder: ESP-ID
 
 | Pin    | Signal         | Type     | ECU-pin (4E-FE)    | Interface                    | Status                   |
 |--------|----------------|----------|--------------------|------------------------------|--------------------------|
-| GPIO8  | NE crank       | Digital  | A21 / A9           | MAX9926 VR-modul + 10k pull-up | Påkrævet               |
+| GPIO8  | NE crank       | Digital  | A21 / A9           | MAX9924 + 10k pull-up         | Påkrævet               |
 | GPIO9  | IGT ignition   | Digital  | A6 IGT1            | 10 k / 18 k (5 V)            | Påkrævet                 |
 | GPIO10 | CAL knap       | Digital  | –                  | Intern pull-up               | Påkrævet                 |
 | GPIO4  | MAP sensor     | ADC1_CH3 | A4 PIM             | 10 k / 18 k (5 V)            | Valgfri, auto-detekteret |
@@ -176,7 +178,7 @@ Mappen [`toyota-4e-fe/`](toyota-4e-fe/) indeholder bilens verificerede ECU-pinou
 
 ## Signaloversigt
 
-- **NE**: VR-sensor på et 36-2 triggerhjul, konditioneret af MAX9926 til en digital puls. Første tand efter hullet = tand 0. Offset til TDC findes ved kalibrering.
+- **NE**: VR-sensor på et 36-2 triggerhjul, konditioneret af MAX9924 til en digital puls. Første tand efter hullet = tand 0. Offset til TDC findes ved kalibrering.
 - **IGT**: Tændingsordre (5 V). Rising = dwell start. Falling = gnist. Krumtappens vinkel registreres i selve IGT-interruptet ved den faldende flanke, så advance er vinklen ved gnisten. IGT1 tænder cyl. 1+4 (wasted spark), én gang pr. omdrejning.
 - **MAP**: Analog tryk-sensor (Toyota PIM). Standard-preset: 1,16 V = 20 kPa, 3,71 V = 105 kPa.
 - **INJ**: Fuel injektor puls (gruppe #10 = cyl. 1+3). Pulsbredde = indsprøjtningsvarighed.
@@ -225,7 +227,7 @@ Se [`firmware/platformio.ini`](firmware/platformio.ini) for detaljer.
 
 | Symptom | Mulig årsag | Løsning |
 |---------|-------------|---------|
-| RPM = 0, Sync = 0 | NE signal når ikke ESP32 | Tjek MAX9926 (5 V forsyning, IN+/IN− på A21/A9, pull-up på OUT til GPIO8) + GND fælles med ECU |
+| RPM = 0, Sync = 0 | NE signal når ikke ESP32 | Tjek MAX9924 (5 V forsyning, IN+/IN− på A21/A9, pull-up på OUT til GPIO8) + GND fælles med ECU |
 | RPM OK, Sync = 0 | Missing tooth ikke detekteret | Kør motoren over 500 RPM nogle sek. |
 | Advance ser forkert ud | Offset ikke kalibreret | Kør Auto-kalibrér ved varm tomgang |
 | Auto-kalibrering: "tændingen låste ikke" | TE1 bliver ikke brokoblet | Tjek optokobleren (C på A2, E på A24, LED via 330 Ω fra GPIO26) |

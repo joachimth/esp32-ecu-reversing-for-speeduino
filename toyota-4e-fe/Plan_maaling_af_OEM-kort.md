@@ -7,7 +7,7 @@ Fabrikskortene findes ikke i nogen af filerne, og ROM'en er ikke udlæst. Der er
 Kør bilen på **original-ECU'en** og aflyt signalerne parallelt bag på OEM-stikket. REV2-adapteren erstatter ECU'en og bruges ikke her.
 
 ### Hardware: ESP32-C5-loggeren i dette repo
-- Board: Waveshare ESP32-C5-WIFI6-KIT. NE (A21/A9) via MAX9926, IGT1 (A6), PIM (A4), THW (A3), THA (A5), #10 (A12), RSO (A14) og TE1-optokobler (A2). Se `OEM-aflytning_ESP32-C5.html` og `../docs/wiring-4e-fe.svg`.
+- Board: Waveshare ESP32-C5-WIFI6-KIT. NE (A21/A9) via MAX9924, IGT1 (A6), PIM (A4), THW (A3), THA (A5), #10 (A12), RSO (A14) og TE1-optokobler (A2). Se `OEM-aflytning_ESP32-C5.html` og `../docs/wiring-4e-fe.svg`.
 - Loggeren beregner RPM, advance ved gnisten, dwell, MAP, injektor-ms, IAC-duty og kølevands-/indsugningstemperatur og logger dem til CSV (`/log.csv`).
 - THW/THA tappes højimpedant (1 MΩ/2 MΩ + 100 nF), så OEM-ECU'ens egen måling ikke påvirkes. **KNK1 tilsluttes ikke.**
 - Alternativ til detaljerede bølgeformer: en 8-kanals logikanalysator (FX2 + PulseView) på IGT1, IGT2, #10 og #20 med samme beskyttelse som loggeren.

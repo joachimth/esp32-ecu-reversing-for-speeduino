@@ -1,0 +1,31 @@
+.pio/build/esp32c5/FrameworkArduino/WMath.cpp.o: \
+ /root/.platformio/packages/framework-arduinoespressif32/cores/esp32/WMath.cpp \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_system/include/esp_system.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_err.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/newlib/platform_include/stdio.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_compiler.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_attr.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_bit_defs.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_idf_version.h \
+ /root/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-log.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_timer/include/esp_timer.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_hw_support/include/esp_etm.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_rom/esp32c5/include/esp32c5/rom/ets_sys.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_rom/include/esp_rom_sys.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/soc/esp32c5/include/soc/reset_reasons.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/soc/esp32c5/include/soc/soc_caps.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_config.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_level.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_assert.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_color.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_buffer.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_timestamp.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_write.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_format.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_args.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_macros.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_assert.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_attr.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_private/log_attr.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_hw_support/include/esp_random.h

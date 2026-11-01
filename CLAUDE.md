@@ -9,7 +9,7 @@ Reverse engineer Toyota 4E-FE OEM ECU via signalanalyse på NE (crank) og IGT (i
 ### Pin-oversigt (ESP32-C5)
 | Pin    | Signal         | Type      | Beskyttelse           | Bemærkning        |
 |--------|----------------|-----------|-----------------------|-------------------|
-| GPIO8  | NE crank       | Digital   | MAX9926 VR-modul, OUT + 10k pull-up til 3V3 | Påkrævet (ECU A21 NE+ / A9 NE−) |
+| GPIO8  | NE crank       | Digital   | MAX9924 (Mode A1), OUT + 10k pull-up til 3V3 | Påkrævet (ECU A21 NE+ / A9 NE−) |
 | GPIO9  | IGT ignition   | Digital   | 10k/18k deler (5V)    | Påkrævet (ECU A6 IGT1) |
 | GPIO10 | CAL knap       | Digital   | Intern pull-up        | Starter auto-kalibrering |
 | GPIO4  | MAP sensor     | ADC1_CH3  | 10k/18k deler (5V)    | Valgfri, auto-detekteret (ECU A4 PIM) |
@@ -35,8 +35,10 @@ Loggeren tappes **parallelt bag på OEM-ECU'ens stik**, mens bilen kører på or
 
 ```
 NE (VR-sensor, ± AC – aldrig en ren modstandsdeler, NE− må ikke til stel):
-  A21 NE+ → MAX9926 IN+,  A9 NE− → MAX9926 IN−,  OUT (open drain) → GPIO8 + 10k pull-up til 3V3
-  MAX9926 VCC = boardets 5V-pin, GND = E1
+  A21 NE+ → MAX9924 IN+,  A9 NE− → MAX9924 IN−,  OUT (open drain) → GPIO8 + 10k pull-up til 3V3
+  MAX9924 VCC = boardets 5V-pin, GND = E1. 10k i serie på IN+/IN−, 470 pF–1 nF mellem dem
+  Mode A1: ZERO_EN (ben 6) + INT_THRS (ben 9) → 5V, EXT (ben 8) NC, BIAS (ben 4) = 1k/1k-deler fra 5V + 100 nF ∥ 10 µF
+  Ingen modstand mellem NE+ og NE− (MAX9924 har ~100 kΩ indgang; en 4,7k belaster OEM-ECU'ens NE-signal ~25 %)
 
 IGT1 (A6) / PIM (A4), 5V:      SIG ---[10k]---+--- GPIO
                                               |
@@ -53,6 +55,8 @@ THW (A3) / THA (A5), NTC:      SIG ---[1M]----+------+--- GPIO     (belastning <
 #10 (A12) / RSO (A14), 12V:    SIG ---[33k]---+---+--- GPIO
                                               |   |
                                              [10k] BAT54S → 3V3 / GND (clamp mod 40–80 V induktive spidser)
+                                                                         Nederste modstand SKAL være 10k: 33k/18k giver ~4,9 V ved 14 V.
+                                                                         Schottky (BAT54S): 1N4148 clamper først ved ~4 V.
                                               |
                                              GND
 
@@ -63,8 +67,17 @@ TE1 (A2):  GPIO26 ---[330]--- PC817 LED --- GND ;  PC817 C = A2 TE1, E = A24 E1
 - **Må ikke tilsluttes:** KNK1 (højimpedant piezo).
 - IGT er 5 V: en 33k/10k-deler giver kun ~1,2 V og registreres aldrig som HIGH.
 
+### Logger-PCB (EasyEDA, `hardware/`)
+`SCH_Logger_2026-11-01.pdf` er gennemgået 01-11-2026. Rettelser er markeret på `SCH_Logger_2026-11-01_rettelser.png`:
+1. R8 (RSO-deler) 18k → 10k.
+2. U3 MAX9924 ben 9 INT_THRS: GND → 5V.
+3. U3 ben 6 ZERO_EN: GND → 5V.
+4. U3 ben 4 BIAS: GND → 1k/1k-deler fra 5V med 100 nF ∥ 10 µF.
+5. R6 4,7k over NE+/NE− fjernes.
+Anbefalet: D1–D4 1N4148WS → BAT54S, C1 1 nF → 470 pF, stik til bil-ledninger og CAL-knap, monteringshuller.
+
 ## Signallogik
-- **NE**: VR-sensor på 36-2 triggerhjul, konditioneret af MAX9926. Første tand efter hullet = tand 0; offset til TDC findes ved kalibrering.
+- **NE**: VR-sensor på 36-2 triggerhjul, konditioneret af MAX9924. Første tand efter hullet = tand 0; offset til TDC findes ved kalibrering.
 - **IGT**: Ignition command (5 V, IGT1 = cyl. 1+4, wasted spark). Rising = dwell start. Falling = spark. `igtISR()` gemmer tand + brøkdel (heltal, ×1000) i selve interruptet ved den faldende flanke; advance beregnes ud fra den vinkel – ikke ud fra krumtappens position, når loggen sampler.
 - **MAP**: Analog tryk-sensor (Toyota PIM). Standard: 1.16V=20kPa, 3.71V=105kPa (Toyota 4E-FE preset, ~0.03 V/kPa).
 - **INJ**: Fuel injector puls (gruppe #10 = cyl. 1+3). Falling = start, Rising = slut. Pulsbredde = indsprøjtningsvarighed.
@@ -363,7 +376,7 @@ Web flasher er live på:
 | Problem | Detalje | Status |
 |---------|---------|--------|
 | ~~Advance/RPM forkert i tand 0~~ | ~~Efter hullet blev `toothPeriodUs` sat til hele hullets varighed (3 perioder), så frac/advance/RPM i tand 0 var op til ~6,7° forkerte.~~ | **Fikset** – `dt / MISSING_GAP_PERIODS` ved hullet |
-| ~~IGT-deler forkert~~ | ~~Dokumentationen angav 33k/10k for IGT (5 V-signal → ~1,2 V, aldrig HIGH) og en ren deler på NE (VR-sensor).~~ | **Fikset** – 10k/18k på IGT, MAX9926 på NE |
+| ~~IGT-deler forkert~~ | ~~Dokumentationen angav 33k/10k for IGT (5 V-signal → ~1,2 V, aldrig HIGH) og en ren deler på NE (VR-sensor).~~ | **Fikset** – 10k/18k på IGT, MAX9924 på NE |
 | ~~Advance målt på forkert tidspunkt~~ | ~~Advance blev regnet ud fra krumtappens position, når loggen samplede (hver 200 ms), ikke ved gnisten. CAL gemte den tilfældige tand.~~ | **Fikset** – vinklen fanges i `igtISR()` ved faldende flanke |
 | ~~Gnist i 36-2-hullet klippet~~ | ~~Brøken blev clampet til 1, så gnister mellem tand 33 og tand 0 (330–360°) blev registreret som 340°.~~ | **Fikset** – clamp til 3 efter tand 33 |
 | ~~INJ på GPIO15~~ | ~~GPIO15 er SPICS1 (PSRAM CS) og ikke ført ud på N16R4-modulet.~~ | **Fikset** – flyttet til GPIO24 |

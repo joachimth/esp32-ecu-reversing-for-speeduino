@@ -1,0 +1,31 @@
+.pio/build/esp32c5/FrameworkArduino/idf_openthread_mpool_wrapper.c.o: \
+ /root/.platformio/packages/framework-arduinoespressif32/cores/esp32/idf_openthread_mpool_wrapper.c \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/soc/esp32c5/include/soc/soc_caps.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/qio_qspi/include/sdkconfig.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/newlib/platform_include/assert.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/heap/include/esp_heap_caps.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/heap/include/multi_heap.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_err.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/newlib/platform_include/stdio.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_compiler.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_attr.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_rom/include/esp_rom_sys.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/soc/esp32c5/include/soc/reset_reasons.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_config.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_level.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_assert.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_color.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_buffer.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_timestamp.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_write.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_format.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_args.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_macros.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/esp_common/include/esp_assert.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_log_attr.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/log/include/esp_private/log_attr.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/openthread/openthread/include/openthread/instance.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/openthread/openthread/include/openthread/error.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/openthread/openthread/include/openthread/platform/toolchain.h \
+ /root/.platformio/packages/framework-arduinoespressif32-libs/esp32c5/include/openthread/openthread/include/openthread/platform/messagepool.h

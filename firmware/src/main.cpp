@@ -25,7 +25,7 @@
 //
 // Interface to the Toyota 4E-FE OEM ECU connector (tapped in parallel, listen only).
 // See docs/wiring-4e-fe.svg.
-//   NE    → GPIO8   ECU A21 NE+ / A9 NE- → MAX9926 VR conditioner (differential),
+//   NE    → GPIO8   ECU A21 NE+ / A9 NE- → MAX9924 VR conditioner (differential),
 //                   open-drain OUT with 10k pull-up to 3V3. NE is a VR sensor
 //                   (AC, amplitude grows with RPM) – never a plain resistor divider.
 //   IGT   → GPIO9   ECU A6 IGT1, 5V logic → 10k/18k divider
