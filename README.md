@@ -19,7 +19,7 @@ Du skal bruge:
 - 1× **Waveshare ESP32-C5-WIFI6-KIT** (ESP32-C5-WROOM-1 N16R4, USB-C), forsynet fra en **powerbank** (ikke bilens 12 V – undgår stelsløjfer)
 - 1× **MAX9924** VR-konditionering (µMAX-10) på loggerprintet, forsynet fra boardets 5V-pin. Konfigureres i Mode A1: ZERO_EN og INT_THRS til 5V, EXT ikke forbundet, BIAS på en 1k/1k-deler (5V/2) med 100 nF + 10 µF. Ingen modstand mellem NE+ og NE−
 - Modstande: **2× 10 kΩ + 2× 18 kΩ** (IGT, MAP), **2× 1 MΩ + 2× 2 MΩ** (THW, THA), **2× 33 kΩ + 2× 10 kΩ** (INJ, IAC), **1× 10 kΩ** (pull-up på MAX9924 OUT), **1× 330 Ω** (optokobler-LED)
-- **2× 100 nF** (THW, THA ved ADC-pin) og **2× BAT54S** (Schottky) som clamp på INJ og IAC. 1N4148 har ca. 0,7 V spændingsfald og clamper først ved ca. 4 V, over ESP32'ens grænse på 3,6 V
+- **2× 100 nF** (THW, THA ved ADC-pin) og **2× BAT54S** (Schottky, JLC C7420333) eller **4× 1N5819WS** (JLC basic C191023, SOD-323) som clamp på INJ og IAC. 1N4148 har ca. 0,7 V spændingsfald og clamper først ved ca. 4 V, over ESP32'ens grænse på 3,6 V
 - 1× **PC817 optokobler** (TE1–E1-bro til automatisk kalibrering) og 1× momentan trykknap (CAL)
 
 ```

@@ -74,7 +74,7 @@ TE1 (A2):  GPIO26 ---[330]--- PC817 LED --- GND ;  PC817 C = A2 TE1, E = A24 E1
 3. U3 ben 6 ZERO_EN: GND → 5V.
 4. U3 ben 4 BIAS: GND → 1k/1k-deler fra 5V med 100 nF ∥ 10 µF.
 5. R6 4,7k over NE+/NE− fjernes.
-Anbefalet: D1–D4 1N4148WS → BAT54S, C1 1 nF → 470 pF, stik til bil-ledninger og CAL-knap, monteringshuller.
+Anbefalet: D1–D4 1N4148WS → 1N5819WS (JLC basic C191023, samme SOD-323-footprint) eller BAT54S (C7420333, preferred extended), C1 1 nF → 470 pF, stik til bil-ledninger og CAL-knap, monteringshuller.
 
 ## Signallogik
 - **NE**: VR-sensor på 36-2 triggerhjul, konditioneret af MAX9924. Første tand efter hullet = tand 0; offset til TDC findes ved kalibrering.
