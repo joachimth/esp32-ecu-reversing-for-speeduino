@@ -76,6 +76,7 @@ TE1 (A2):  GPIO26 ---[330]--- PC817 LED --- GND ;  PC817 C = A2 TE1, E = A24 E1
   - D1/D2/D7/D8 er 1N5819WS.
   - Skrueterminaler P1–P6 (5,0 mm) til E1/TE1, THW/THA, NE+/NE−, IGT1/PIM, CAL/GND og #10/RSO.
 - Pin-mappingen til U2 (Waveshare-header) matcher firmwaren.
+- `BOM_JLC_rev2.csv`: komponentvalg 08-11-2026 (Basic > Preferred > lager > MOQ > pris). Alle R/C i 0603 Basic, U1 = LTV-817S-TA1-C (Basic, SMD-4P), U3 MAX9924UAUB+T C5145181 (lavt lager).
 
 ## Signallogik
 - **NE**: VR-sensor på 36-2 triggerhjul, konditioneret af MAX9924. Første tand efter hullet = tand 0; offset til TDC findes ved kalibrering.
